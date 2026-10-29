@@ -40,6 +40,29 @@
         </div>
       </section>
 
+      <!-- State 2: Connected / Ready State -->
+      <section id="state-connected" class="state-view hidden">
+        <div class="card card--centered">
+          <div class="card-icon">🟢</div>
+          <h2>Store Connected</h2>
+          <p id="connected-store-info" class="description">Connected to your Shopify store.</p>
+          <div class="info-box">
+            <div class="info-row">
+              <span class="info-label">Shop:</span>
+              <span id="info-shop-domain" class="info-value">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Base Currency:</span>
+              <span id="info-store-currency" class="info-value">-</span>
+            </div>
+          </div>
+          <p class="guide-note">👉 Navigate to an AliExpress product page to import it as a Draft.</p>
+          <button id="btn-disconnect" class="btn btn--secondary" type="button" style="margin-top: 16px;">
+            Disconnect Store
+          </button>
+        </div>
+      </section>
+
       <!-- Status notification area for M1 -->
       <section id="status-banner" class="status-banner hidden" role="alert" aria-live="polite">
         <p id="status-text"></p>

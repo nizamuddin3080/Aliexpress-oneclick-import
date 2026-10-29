@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from 'cors';
 import { config } from './config.js';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
 
 export function createApp(): Express {
   const app = express();
@@ -45,7 +46,10 @@ export function createApp(): Express {
   // 3. Health & Diagnostic Routes
   app.use(healthRouter);
 
-  // 4. 404 Not Found Handler
+  // 4. Authentication & Store Lifecycle Routes
+  app.use(authRouter);
+
+  // 5. 404 Not Found Handler
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       success: false,

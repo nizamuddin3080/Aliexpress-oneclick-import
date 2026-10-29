@@ -173,8 +173,54 @@ body {
   color: #ffffff;
 }
 
-.btn--primary:hover {
-  background-color: var(--color-primary-hover);
+.store-badge--connected {
+  background-color: #e4f8f0;
+  color: var(--color-primary);
+}
+
+.store-badge--connected .status-indicator {
+  background-color: var(--color-primary);
+}
+
+.btn--secondary {
+  background-color: #ffffff;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn--secondary:hover {
+  background-color: var(--color-surface);
+}
+
+.info-box {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.info-label {
+  color: var(--color-text-subdued);
+}
+
+.info-value {
+  font-weight: 500;
+}
+
+.guide-note {
+  font-size: 12px;
+  color: var(--color-text-subdued);
+  line-height: 1.4;
+  margin-top: 8px;
 }
 
 .security-note {

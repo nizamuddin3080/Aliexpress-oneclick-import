@@ -54,18 +54,18 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M2-01 | Initialize SQLite database in WAL mode | M1-09 | Database engine with migration runner | Creates `stores` & `import_attempts` tables | Unit test | [ ] |
-| M2-02 | Implement AES-256-GCM token encryption | M1-09 | Encrypt/decrypt helper module | Round-trip encrypts and recovers token | Unit test | [ ] |
-| M2-03 | Implement `GET /auth/shopify` | M1-12 | Initiates OAuth flow with Shopify | Validates domain, generates CSRF nonce | Unit test | [ ] |
-| M2-04 | Implement OAuth HMAC & state validation | M2-03 | Callback security validation | Rejects tampered HMAC or replayed state | Unit test | [ ] |
-| M2-05 | Implement token exchange & store currency query | M2-04 | Obtains offline token & queries shop | Stores encrypted token and store currency | Integration | [ ] |
-| M2-06 | Implement single-store enforcement | M2-05 | Deactivates previous active store | Only 1 store has `is_active = 1` | Unit test | [ ] |
-| M2-07 | Implement short-lived auth code generation | M2-05 | 32-byte code with 60s TTL | Redirects to extension with `?code=...` | Unit test | [ ] |
-| M2-08 | Implement `POST /auth/exchange` for JWT | M2-07 | Exchanges code for 7-day JWT | Enforces single-use; returns JWT | Integration | [ ] |
-| M2-09 | Implement JWT validation middleware | M2-08 | Protects all `/api/*` endpoints | Rejects missing/expired tokens with 401 | Unit test | [ ] |
-| M2-10 | Implement `GET /api/status` | M2-09 | Returns connected store name & currency | Returns store details to authenticated user | Integration | [ ] |
-| M2-11 | Build extension OAuth callback handler | M1-08, M2-08 | Popup receives code and calls exchange | Stores JWT in `chrome.storage.local` | Manual E2E | [ ] |
-| M2-12 | Implement secure token wipe on disconnect | M2-01 | Disconnect endpoint overwrites token | Zeroes out token fields in SQLite | Unit test | [ ] |
+| M2-01 | Initialize SQLite database in WAL mode | M1-09 | Database engine with migration runner | Creates `stores` & `import_attempts` tables | Unit test | [x] |
+| M2-02 | Implement AES-256-GCM token encryption | M1-09 | Encrypt/decrypt helper module | Round-trip encrypts and recovers token | Unit test | [x] |
+| M2-03 | Implement `GET /auth/shopify` | M1-12 | Initiates OAuth flow with Shopify | Validates domain, generates CSRF nonce | Unit test | [x] |
+| M2-04 | Implement OAuth HMAC & state validation | M2-03 | Callback security validation | Rejects tampered HMAC or replayed state | Unit test | [x] |
+| M2-05 | Implement token exchange & store currency query | M2-04 | Obtains offline token & queries shop | Stores encrypted token and store currency | Integration | [x] |
+| M2-06 | Implement single-store enforcement | M2-05 | Deactivates previous active store | Only 1 store has `is_active = 1` | Unit test | [x] |
+| M2-07 | Implement short-lived auth code generation | M2-05 | 32-byte code with 60s TTL | Redirects to extension with `?code=...` | Unit test | [x] |
+| M2-08 | Implement `POST /auth/exchange` for JWT | M2-07 | Exchanges code for 7-day JWT | Enforces single-use; returns JWT | Integration | [x] |
+| M2-09 | Implement JWT validation middleware | M2-08 | Protects all `/api/*` endpoints | Rejects missing/expired tokens with 401 | Unit test | [x] |
+| M2-10 | Implement `GET /api/status` | M2-09 | Returns connected store name & currency | Returns store details to authenticated user | Integration | [x] |
+| M2-11 | Build extension OAuth callback handler | M1-08, M2-08 | Popup receives code and calls exchange | Stores JWT in `chrome.storage.local` | Manual E2E | [x] |
+| M2-12 | Implement secure token wipe on disconnect | M2-01 | Disconnect endpoint overwrites token | Zeroes out token fields in SQLite | Unit test | [x] |
 
 ---
 

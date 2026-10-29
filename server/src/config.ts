@@ -5,33 +5,53 @@ import path from 'node:path';
 dotenv.config();
 
 export interface ServerConfig {
-  PORT: number;
-  NODE_ENV: 'development' | 'production' | 'test';
-  BACKEND_URL: string;
-  SHOPIFY_CLIENT_ID: string;
-  SHOPIFY_CLIENT_SECRET: string;
-  JWT_SECRET: string;
-  ENCRYPTION_KEY: string;
-  DATABASE_PATH: string;
-  SHOPIFY_API_VERSION: string;
-  SHOPIFY_SCOPES: string;
-  EXTENSION_ID: string;
+  readonly PORT: number;
+  readonly NODE_ENV: 'development' | 'production' | 'test';
+  readonly BACKEND_URL: string;
+  readonly SHOPIFY_CLIENT_ID: string;
+  readonly SHOPIFY_CLIENT_SECRET: string;
+  readonly JWT_SECRET: string;
+  readonly ENCRYPTION_KEY: string;
+  readonly DATABASE_PATH: string;
+  readonly SHOPIFY_API_VERSION: string;
+  readonly SHOPIFY_SCOPES: string;
+  readonly EXTENSION_ID: string;
 }
 
-const nodeEnv = (process.env.NODE_ENV as ServerConfig['NODE_ENV']) || 'development';
-
 export const config: ServerConfig = {
-  PORT: parseInt(process.env.PORT || '3456', 10),
-  NODE_ENV: nodeEnv,
-  BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:3456',
-  SHOPIFY_CLIENT_ID: process.env.SHOPIFY_CLIENT_ID || '',
-  SHOPIFY_CLIENT_SECRET: process.env.SHOPIFY_CLIENT_SECRET || '',
-  JWT_SECRET: process.env.JWT_SECRET || 'dev_jwt_secret_must_be_replaced_in_production',
-  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || '',
-  DATABASE_PATH: process.env.DATABASE_PATH || path.resolve('data/importer.db'),
-  SHOPIFY_API_VERSION: process.env.SHOPIFY_API_VERSION || '2026-01',
-  SHOPIFY_SCOPES: process.env.SHOPIFY_SCOPES || 'write_products',
-  EXTENSION_ID: process.env.EXTENSION_ID || '',
+  get PORT(): number {
+    return parseInt(process.env.PORT || '3456', 10);
+  },
+  get NODE_ENV(): 'development' | 'production' | 'test' {
+    return (process.env.NODE_ENV as ServerConfig['NODE_ENV']) || 'development';
+  },
+  get BACKEND_URL(): string {
+    return process.env.BACKEND_URL || 'http://localhost:3456';
+  },
+  get SHOPIFY_CLIENT_ID(): string {
+    return process.env.SHOPIFY_CLIENT_ID || '';
+  },
+  get SHOPIFY_CLIENT_SECRET(): string {
+    return process.env.SHOPIFY_CLIENT_SECRET || '';
+  },
+  get JWT_SECRET(): string {
+    return process.env.JWT_SECRET || 'dev_jwt_secret_must_be_replaced_in_production';
+  },
+  get ENCRYPTION_KEY(): string {
+    return process.env.ENCRYPTION_KEY || '';
+  },
+  get DATABASE_PATH(): string {
+    return process.env.DATABASE_PATH || path.resolve('data/importer.db');
+  },
+  get SHOPIFY_API_VERSION(): string {
+    return process.env.SHOPIFY_API_VERSION || '2026-01';
+  },
+  get SHOPIFY_SCOPES(): string {
+    return process.env.SHOPIFY_SCOPES || 'write_products';
+  },
+  get EXTENSION_ID(): string {
+    return process.env.EXTENSION_ID || '';
+  },
 };
 
 export interface AuthStatus {
