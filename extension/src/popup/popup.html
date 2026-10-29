@@ -13,14 +13,14 @@
         <span class="icon">📦</span>
         <h1 class="title">AliExpress Importer</h1>
       </div>
-      <div id="store-badge" class="store-badge store-badge--disconnected">
+      <div id="store-badge" class="store-badge store-badge--disconnected" aria-label="Connection Status">
         <span class="status-indicator"></span>
         <span id="badge-text">Not Connected</span>
       </div>
     </header>
 
     <main id="app-content" class="app-content">
-      <!-- State 1: Disconnected / Initial State -->
+      <!-- 1. Disconnected State -->
       <section id="state-disconnected" class="state-view">
         <div class="card card--centered">
           <div class="card-icon">🏪</div>
@@ -40,33 +40,202 @@
         </div>
       </section>
 
-      <!-- State 2: Connected / Ready State -->
-      <section id="state-connected" class="state-view hidden">
+      <!-- 2. Non-AliExpress Page State -->
+      <section id="state-non-aliexpress" class="state-view hidden">
         <div class="card card--centered">
-          <div class="card-icon">🟢</div>
-          <h2>Store Connected</h2>
-          <p id="connected-store-info" class="description">Connected to your Shopify store.</p>
-          <div class="info-box">
-            <div class="info-row">
-              <span class="info-label">Shop:</span>
-              <span id="info-shop-domain" class="info-value">-</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Base Currency:</span>
-              <span id="info-store-currency" class="info-value">-</span>
+          <div class="card-icon">🌐</div>
+          <h2>AliExpress Page Required</h2>
+          <p class="description">Navigate to an AliExpress product detail page to import it into your store.</p>
+          <div class="action-footer">
+            <button id="btn-disconnect-non-ae" class="btn btn--secondary" type="button">Disconnect Store</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Extracting State -->
+      <section id="state-extracting" class="state-view hidden" aria-live="polite">
+        <div class="card card--centered">
+          <div class="spinner"></div>
+          <h2>Extracting Product Data...</h2>
+          <p class="description">Reading title, variants, prices, and display currency.</p>
+        </div>
+      </section>
+
+      <!-- 4. Product Preview State (Primary Action) -->
+      <section id="state-preview" class="state-view hidden">
+        <div class="product-preview-card">
+          <div class="preview-header">
+            <img id="preview-thumbnail" class="preview-thumbnail" src="" alt="Product Preview">
+            <div class="preview-info">
+              <h2 id="preview-title" class="preview-title" title="">Product Title</h2>
+              <div class="preview-badges">
+                <span id="preview-variants-badge" class="badge">0 variants</span>
+                <span id="preview-images-badge" class="badge">0 images</span>
+              </div>
             </div>
           </div>
-          <p class="guide-note">👉 Navigate to an AliExpress product page to import it as a Draft.</p>
-          <button id="btn-disconnect" class="btn btn--secondary" type="button" style="margin-top: 16px;">
-            Disconnect Store
+
+          <div class="price-breakdown-box">
+            <div class="price-row">
+              <span class="label">Source Price:</span>
+              <span id="preview-source-price" class="value font-mono">-</span>
+            </div>
+            <div class="markup-row">
+              <label for="preview-markup-input" class="label">Price Markup:</label>
+              <div class="markup-input-wrap">
+                <input type="number" id="preview-markup-input" value="30" min="0" max="1000" step="1">
+                <span class="percent-suffix">%</span>
+              </div>
+            </div>
+            <div class="price-row price-row--highlight">
+              <span class="label">Selling Price (Draft):</span>
+              <span id="preview-selling-price" class="value font-mono font-bold">-</span>
+            </div>
+          </div>
+
+          <button id="btn-import" class="btn btn--primary btn--large" type="button">
+            ⬆️ Import to Shopify
+          </button>
+          <p class="draft-notice">📝 Product will be created as <strong>Draft</strong> (never published automatically)</p>
+        </div>
+      </section>
+
+      <!-- 5. Currency Mismatch State -->
+      <section id="state-currency-mismatch" class="state-view hidden" role="alert">
+        <div class="card card--alert card--warning">
+          <div class="card-icon">⚠️</div>
+          <h2>Currency Mismatch</h2>
+          <p class="description">
+            AliExpress display currency (<strong id="mismatch-source-cur">-</strong>) does not match your Shopify store base currency (<strong id="mismatch-store-cur">-</strong>).
+          </p>
+          <p class="guide-note">
+            Automatic currency conversion is not supported to avoid inaccurate pricing.<br><br>
+            👉 Please switch your AliExpress currency setting to <strong id="mismatch-target-cur">-</strong> and refresh the page.
+          </p>
+          <button id="btn-mismatch-retry" class="btn btn--secondary" type="button" style="margin-top: 14px;">
+            Re-check Page
           </button>
         </div>
       </section>
 
-      <!-- Status notification area for M1 -->
-      <section id="status-banner" class="status-banner hidden" role="alert" aria-live="polite">
-        <p id="status-text"></p>
+      <!-- 6. Unsupported Product State (> 3 Options) -->
+      <section id="state-unsupported-options" class="state-view hidden" role="alert">
+        <div class="card card--alert card--critical">
+          <div class="card-icon">⛔</div>
+          <h2>Unsupported Product</h2>
+          <p id="unsupported-reason" class="description">
+            This product contains more than 3 option dimensions.
+          </p>
+          <p class="guide-note">
+            Shopify enforces a strict limit of 3 options per product. To prevent variant corruption and mismatched prices, this product cannot be imported.
+          </p>
+        </div>
       </section>
+
+      <!-- 7. Extraction Error State -->
+      <section id="state-extraction-error" class="state-view hidden" role="alert">
+        <div class="card card--alert card--critical">
+          <div class="card-icon">❌</div>
+          <h2>Extraction Failed</h2>
+          <p id="extraction-error-message" class="description">Could not extract product details.</p>
+          <button id="btn-extraction-retry" class="btn btn--primary" type="button" style="margin-top: 14px;">
+            Try Again
+          </button>
+        </div>
+      </section>
+
+      <!-- 8. Importing State -->
+      <section id="state-importing" class="state-view hidden" aria-live="polite">
+        <div class="card card--centered">
+          <div class="spinner"></div>
+          <h2>Importing to Shopify...</h2>
+          <p class="description">Creating draft product, variants, and attaching media.</p>
+          <button class="btn btn--primary btn--disabled" type="button" disabled>
+            ⏳ Importing...
+          </button>
+        </div>
+      </section>
+
+      <!-- 9. Full Success State -->
+      <section id="state-success" class="state-view hidden" aria-live="polite">
+        <div class="card card--centered card--success">
+          <div class="card-icon">✅</div>
+          <h2>Draft Created Successfully!</h2>
+          <p id="success-product-title" class="success-title">Product Title</p>
+          <div class="summary-box">
+            <div class="summary-row">
+              <span>Variants:</span>
+              <span id="success-variants-count">0</span>
+            </div>
+            <div class="summary-row">
+              <span>Images:</span>
+              <span id="success-images-count">0</span>
+            </div>
+            <div class="summary-row">
+              <span>Status:</span>
+              <span class="badge badge--draft">Draft</span>
+            </div>
+          </div>
+          <a id="btn-view-shopify-admin" class="btn btn--primary" href="#" target="_blank" rel="noopener noreferrer">
+            🔗 View in Shopify Admin
+          </a>
+          <button id="btn-import-another" class="btn btn--secondary" type="button" style="margin-top: 8px;">
+            Import Another Product
+          </button>
+        </div>
+      </section>
+
+      <!-- 10. Partial Image Success State -->
+      <section id="state-partial-image-success" class="state-view hidden" aria-live="polite">
+        <div class="card card--alert card--warning">
+          <div class="card-icon">⚠️</div>
+          <h2>Product Created (Partial Images)</h2>
+          <p id="partial-product-title" class="description">Product created as Draft.</p>
+          <p id="partial-warning-text" class="guide-note" style="color: #b98900;">
+            Some images could not be imported from the CDN.
+          </p>
+          <a id="btn-view-partial-admin" class="btn btn--primary" href="#" target="_blank" rel="noopener noreferrer" style="margin-top: 14px;">
+            🔗 View in Shopify Admin
+          </a>
+          <button id="btn-partial-done" class="btn btn--secondary" type="button" style="margin-top: 8px;">
+            Done
+          </button>
+        </div>
+      </section>
+
+      <!-- 11. Duplicate State -->
+      <section id="state-duplicate" class="state-view hidden">
+        <div class="card card--centered">
+          <div class="card-icon">ℹ️</div>
+          <h2>Already Imported</h2>
+          <p class="description">This AliExpress product has already been imported into your Shopify store.</p>
+          <a id="btn-view-duplicate-admin" class="btn btn--primary" href="#" target="_blank" rel="noopener noreferrer" style="margin-top: 14px;">
+            🔗 View Existing in Shopify
+          </a>
+        </div>
+      </section>
+
+      <!-- 12. Uncertain Outcome State (No Blind Retry) -->
+      <section id="state-uncertain-outcome" class="state-view hidden" role="alert">
+        <div class="card card--alert card--critical">
+          <div class="card-icon">❓</div>
+          <h2>Import Outcome Uncertain</h2>
+          <p class="description">
+            The import request was sent to Shopify, but the connection timed out before confirmation.
+          </p>
+          <p class="guide-note" style="font-weight: 600; color: #d72c0d;">
+            ⚠️ Do NOT retry immediately. The product may already have been created in your store.
+          </p>
+          <a id="btn-check-admin-products" class="btn btn--primary" href="#" target="_blank" rel="noopener noreferrer" style="margin-top: 14px;">
+            🔗 Check Shopify Products List
+          </a>
+        </div>
+      </section>
+
+      <!-- Global Ephemeral Status Banner -->
+      <div id="status-banner" class="status-banner hidden" role="alert" aria-live="polite">
+        <p id="status-text"></p>
+      </div>
     </main>
   </div>
   <script type="module" src="popup.js"></script>

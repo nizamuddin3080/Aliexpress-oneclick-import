@@ -1,10 +1,25 @@
 import { CONFIG } from '../shared/config.js';
+import { calculatePriceRange } from '../shared/pricing.js';
+import { isAllowedAliExpressHost } from '../content/url-parser.js';
+import type { ExtractedProduct, ImportApiResponse, StoreStatusResponse } from '../shared/types.js';
 
-interface StatusResponse {
-  connected: boolean;
-  shop_domain?: string;
-  store_name?: string;
-  store_currency?: string;
+export type PopupState =
+  | 'disconnected'
+  | 'non-aliexpress'
+  | 'extracting'
+  | 'preview'
+  | 'currency-mismatch'
+  | 'unsupported-options'
+  | 'extraction-error'
+  | 'importing'
+  | 'success'
+  | 'partial-image-success'
+  | 'duplicate'
+  | 'uncertain-outcome';
+
+interface ExtractionMessageResponse {
+  success: boolean;
+  product?: ExtractedProduct;
   error?: {
     code: string;
     message: string;
@@ -12,21 +27,79 @@ interface StatusResponse {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const stateDisconnected = document.getElementById('state-disconnected');
-  const stateConnected = document.getElementById('state-connected');
+  // Elements
+  const stateViews = {
+    'disconnected': document.getElementById('state-disconnected'),
+    'non-aliexpress': document.getElementById('state-non-aliexpress'),
+    'extracting': document.getElementById('state-extracting'),
+    'preview': document.getElementById('state-preview'),
+    'currency-mismatch': document.getElementById('state-currency-mismatch'),
+    'unsupported-options': document.getElementById('state-unsupported-options'),
+    'extraction-error': document.getElementById('state-extraction-error'),
+    'importing': document.getElementById('state-importing'),
+    'success': document.getElementById('state-success'),
+    'partial-image-success': document.getElementById('state-partial-image-success'),
+    'duplicate': document.getElementById('state-duplicate'),
+    'uncertain-outcome': document.getElementById('state-uncertain-outcome'),
+  };
+
   const storeBadge = document.getElementById('store-badge');
   const badgeText = document.getElementById('badge-text');
 
+  // Disconnected view elements
   const connectBtn = document.getElementById('btn-connect') as HTMLButtonElement | null;
-  const disconnectBtn = document.getElementById('btn-disconnect') as HTMLButtonElement | null;
   const domainInput = document.getElementById('shop-domain-input') as HTMLInputElement | null;
+  const disconnectNonAeBtn = document.getElementById('btn-disconnect-non-ae') as HTMLButtonElement | null;
 
-  const infoShopDomain = document.getElementById('info-shop-domain');
-  const infoStoreCurrency = document.getElementById('info-store-currency');
-  const connectedStoreInfo = document.getElementById('connected-store-info');
+  // Preview view elements
+  const previewThumb = document.getElementById('preview-thumbnail') as HTMLImageElement | null;
+  const previewTitle = document.getElementById('preview-title');
+  const previewVariantsBadge = document.getElementById('preview-variants-badge');
+  const previewImagesBadge = document.getElementById('preview-images-badge');
+  const previewSourcePrice = document.getElementById('preview-source-price');
+  const previewMarkupInput = document.getElementById('preview-markup-input') as HTMLInputElement | null;
+  const previewSellingPrice = document.getElementById('preview-selling-price');
+  const importBtn = document.getElementById('btn-import') as HTMLButtonElement | null;
 
+  // Error & Mismatch elements
+  const mismatchSourceCur = document.getElementById('mismatch-source-cur');
+  const mismatchStoreCur = document.getElementById('mismatch-store-cur');
+  const mismatchTargetCur = document.getElementById('mismatch-target-cur');
+  const mismatchRetryBtn = document.getElementById('btn-mismatch-retry');
+
+  const unsupportedReason = document.getElementById('unsupported-reason');
+  const extractionErrorMsg = document.getElementById('extraction-error-message');
+  const extractionRetryBtn = document.getElementById('btn-extraction-retry');
+
+  // Success view elements
+  const successProductTitle = document.getElementById('success-product-title');
+  const successVariantsCount = document.getElementById('success-variants-count');
+  const successImagesCount = document.getElementById('success-images-count');
+  const viewShopifyAdminBtn = document.getElementById('btn-view-shopify-admin') as HTMLAnchorElement | null;
+  const importAnotherBtn = document.getElementById('btn-import-another');
+
+  // Partial image success elements
+  const partialProductTitle = document.getElementById('partial-product-title');
+  const partialWarningText = document.getElementById('partial-warning-text');
+  const viewPartialAdminBtn = document.getElementById('btn-view-partial-admin') as HTMLAnchorElement | null;
+  const partialDoneBtn = document.getElementById('btn-partial-done');
+
+  // Duplicate view elements
+  const viewDuplicateAdminBtn = document.getElementById('btn-view-duplicate-admin') as HTMLAnchorElement | null;
+
+  // Uncertain outcome elements
+  const checkAdminProductsBtn = document.getElementById('btn-check-admin-products') as HTMLAnchorElement | null;
+
+  // Status banner
   const statusBanner = document.getElementById('status-banner');
   const statusText = document.getElementById('status-text');
+
+  // Application State
+  let currentJwt: string | null = null;
+  let activeStoreDomain: string | null = null;
+  let activeStoreName: string | null = null;
+  let activeStoreCurrency: string = 'USD';
+  let currentProduct: ExtractedProduct | null = null;
 
   function showStatus(message: string, isError = false): void {
     if (!statusBanner || !statusText) return;
@@ -47,33 +120,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusBanner) statusBanner.classList.add('hidden');
   }
 
-  function renderConnected(shopDomain: string, storeName: string, currency: string): void {
+  function setPopupState(state: PopupState): void {
     hideStatus();
-    if (stateDisconnected) stateDisconnected.classList.add('hidden');
-    if (stateConnected) stateConnected.classList.remove('hidden');
+    for (const [key, el] of Object.entries(stateViews)) {
+      if (el) {
+        if (key === state) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      }
+    }
+  }
 
+  function updateBadgeConnected(name: string, currency: string): void {
     if (storeBadge) {
       storeBadge.classList.remove('store-badge--disconnected');
       storeBadge.classList.add('store-badge--connected');
     }
     if (badgeText) {
-      badgeText.textContent = `${storeName} (${currency})`;
-    }
-    if (connectedStoreInfo) {
-      connectedStoreInfo.textContent = `Connected to ${storeName}`;
-    }
-    if (infoShopDomain) {
-      infoShopDomain.textContent = shopDomain;
-    }
-    if (infoStoreCurrency) {
-      infoStoreCurrency.textContent = currency;
+      badgeText.textContent = `${name} (${currency})`;
     }
   }
 
-  function renderDisconnected(): void {
-    if (stateConnected) stateConnected.classList.add('hidden');
-    if (stateDisconnected) stateDisconnected.classList.remove('hidden');
-
+  function updateBadgeDisconnected(): void {
     if (storeBadge) {
       storeBadge.classList.remove('store-badge--connected');
       storeBadge.classList.add('store-badge--disconnected');
@@ -83,61 +153,307 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // 1. Check local session storage on popup open
-  async function checkSession(): Promise<void> {
+  function updateCalculatedPrice(): void {
+    if (!currentProduct || !previewSellingPrice || !previewMarkupInput) return;
+
+    const markup = parseFloat(previewMarkupInput.value) || 0;
+    const range = calculatePriceRange(currentProduct.variants, markup);
+
+    if (range.isRange) {
+      previewSellingPrice.textContent = `$${range.minPrice} – $${range.maxPrice} ${currentProduct.source_currency}`;
+    } else {
+      previewSellingPrice.textContent = `$${range.minPrice} ${currentProduct.source_currency}`;
+    }
+  }
+
+  // 1. Session Verification
+  async function initializeApp(): Promise<void> {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+      setPopupState('disconnected');
       return;
     }
 
-    const { shopify_jwt } = await chrome.storage.local.get(['shopify_jwt']);
+    const stored = await chrome.storage.local.get([
+      'shopify_jwt',
+      'shopify_store_name',
+      'shopify_store_currency',
+      'shopify_shop_domain',
+    ]);
 
-    if (!shopify_jwt) {
-      renderDisconnected();
+    if (!stored.shopify_jwt) {
+      updateBadgeDisconnected();
+      setPopupState('disconnected');
       return;
     }
 
+    currentJwt = stored.shopify_jwt;
+    activeStoreDomain = stored.shopify_shop_domain;
+    activeStoreName = stored.shopify_store_name || stored.shopify_shop_domain;
+    activeStoreCurrency = stored.shopify_store_currency || 'USD';
+
+    // Verify session with backend
     try {
       const res = await fetch(`${CONFIG.BACKEND_URL}/api/status`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${shopify_jwt}`,
-        },
+        headers: { Authorization: `Bearer ${currentJwt}` },
       });
 
       if (res.status === 401) {
-        // Session expired or revoked
+        // Expired or revoked
         await chrome.storage.local.remove([
           'shopify_jwt',
           'shopify_store_name',
           'shopify_store_currency',
           'shopify_shop_domain',
         ]);
-        renderDisconnected();
-        showStatus('Your previous session expired. Please reconnect.', true);
+        currentJwt = null;
+        updateBadgeDisconnected();
+        setPopupState('disconnected');
+        showStatus('Previous store session has expired. Please reconnect.', true);
         return;
       }
 
       if (res.ok) {
-        const data = (await res.json()) as StatusResponse;
+        const data = (await res.json()) as StoreStatusResponse;
         if (data.connected && data.shop_domain) {
-          renderConnected(
-            data.shop_domain,
-            data.store_name || data.shop_domain,
-            data.store_currency || 'USD'
-          );
+          activeStoreDomain = data.shop_domain;
+          activeStoreName = data.store_name || data.shop_domain;
+          activeStoreCurrency = data.store_currency || 'USD';
+          updateBadgeConnected(activeStoreName, activeStoreCurrency);
+          await checkCurrentTabAndExtract();
         }
       } else {
-        renderDisconnected();
+        updateBadgeDisconnected();
+        setPopupState('disconnected');
       }
     } catch {
-      // Offline or backend unreachable
-      showStatus('Unable to reach backend server. Ensure backend is running.', true);
+      // Backend unreachable: still show connected badge with cached data, warn user
+      updateBadgeConnected(activeStoreName || 'Store', activeStoreCurrency);
+      showStatus('Cannot reach backend server. Please verify backend is running.', true);
+      await checkCurrentTabAndExtract();
     }
   }
 
-  await checkSession();
+  // 2. Tab Inspection & Extraction Trigger
+  async function checkCurrentTabAndExtract(): Promise<void> {
+    if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
+      setPopupState('non-aliexpress');
+      return;
+    }
 
-  // 2. Connect Button Handler
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs[0];
+
+    if (!activeTab || !activeTab.id || !activeTab.url) {
+      setPopupState('non-aliexpress');
+      return;
+    }
+
+    let urlObj: URL;
+    try {
+      urlObj = new URL(activeTab.url);
+    } catch {
+      setPopupState('non-aliexpress');
+      return;
+    }
+
+    // Check if on an AliExpress domain with an item path
+    if (!isAllowedAliExpressHost(urlObj.hostname) || !urlObj.pathname.includes('/item/')) {
+      setPopupState('non-aliexpress');
+      return;
+    }
+
+    // Start extraction
+    setPopupState('extracting');
+
+    try {
+      chrome.tabs.sendMessage(
+        activeTab.id,
+        { action: 'EXTRACT_PRODUCT' },
+        (response: ExtractionMessageResponse) => {
+          if (chrome.runtime.lastError) {
+            setPopupState('extraction-error');
+            if (extractionErrorMsg) {
+              extractionErrorMsg.textContent =
+                'Could not communicate with AliExpress page. Please refresh the AliExpress tab and reopen the extension.';
+            }
+            return;
+          }
+
+          handleExtractionResponse(response);
+        }
+      );
+    } catch {
+      setPopupState('extraction-error');
+      if (extractionErrorMsg) {
+        extractionErrorMsg.textContent = 'Failed to execute extraction on this page.';
+      }
+    }
+  }
+
+  // 3. Handle Extraction Result
+  function handleExtractionResponse(response: ExtractionMessageResponse): void {
+    if (!response || !response.success || !response.product) {
+      const errCode = response?.error?.code || 'UNKNOWN';
+      const errMsg = response?.error?.message || 'Could not extract product information.';
+
+      if (errCode === 'UNSUPPORTED_PRODUCT_OPTIONS') {
+        if (unsupportedReason) unsupportedReason.textContent = errMsg;
+        setPopupState('unsupported-options');
+        return;
+      }
+
+      if (extractionErrorMsg) extractionErrorMsg.textContent = errMsg;
+      setPopupState('extraction-error');
+      return;
+    }
+
+    currentProduct = response.product;
+
+    // Currency verification: strictly compare source currency with store currency (F-02)
+    if (currentProduct.source_currency !== activeStoreCurrency) {
+      if (mismatchSourceCur) mismatchSourceCur.textContent = currentProduct.source_currency;
+      if (mismatchStoreCur) mismatchStoreCur.textContent = activeStoreCurrency;
+      if (mismatchTargetCur) mismatchTargetCur.textContent = activeStoreCurrency;
+      setPopupState('currency-mismatch');
+      return;
+    }
+
+    // Check 3-option limit (F-04)
+    if (currentProduct.options.length > 3) {
+      if (unsupportedReason) {
+        unsupportedReason.textContent = `This product has ${currentProduct.options.length} options (${currentProduct.options.map((o) => o.name).join(', ')}). Shopify supports a maximum of 3 options.`;
+      }
+      setPopupState('unsupported-options');
+      return;
+    }
+
+    // Populate preview state
+    if (previewThumb) {
+      previewThumb.src = currentProduct.images[0]?.url || '';
+      previewThumb.alt = currentProduct.title;
+    }
+    if (previewTitle) {
+      previewTitle.textContent = currentProduct.title;
+      previewTitle.title = currentProduct.title;
+    }
+    if (previewVariantsBadge) {
+      const count = currentProduct.variants.length;
+      const opts = currentProduct.options.map((o) => o.name).join(', ');
+      previewVariantsBadge.textContent = opts ? `${count} variants (${opts})` : `${count} variant`;
+    }
+    if (previewImagesBadge) {
+      previewImagesBadge.textContent = `${currentProduct.images.length} images`;
+    }
+
+    // Populate price breakdown
+    const rawRange = calculatePriceRange(currentProduct.variants, 0);
+    if (previewSourcePrice) {
+      previewSourcePrice.textContent = rawRange.isRange
+        ? `$${rawRange.minPrice} – $${rawRange.maxPrice} ${currentProduct.source_currency}`
+        : `$${rawRange.minPrice} ${currentProduct.source_currency}`;
+    }
+
+    updateCalculatedPrice();
+    setPopupState('preview');
+  }
+
+  // 4. Markup Input Change Listener (Real-Time Recalculation)
+  if (previewMarkupInput) {
+    previewMarkupInput.addEventListener('input', () => {
+      updateCalculatedPrice();
+    });
+  }
+
+  // 5. Import Button Handler
+  if (importBtn) {
+    importBtn.addEventListener('click', async () => {
+      if (!currentProduct || !currentJwt) {
+        showStatus('Missing product data or authentication token.', true);
+        return;
+      }
+
+      setPopupState('importing');
+
+      const markup = previewMarkupInput ? parseFloat(previewMarkupInput.value) || 0 : 30;
+
+      const payload = {
+        source_product_id: currentProduct.source_product_id,
+        source_url: currentProduct.source_url,
+        source_currency: currentProduct.source_currency,
+        title: currentProduct.title,
+        description_html: currentProduct.description_html,
+        images: currentProduct.images,
+        options: currentProduct.options,
+        variants: currentProduct.variants,
+        markup_percentage: markup,
+      };
+
+      try {
+        const res = await fetch(`${CONFIG.BACKEND_URL}/api/import`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${currentJwt}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = (await res.json()) as ImportApiResponse;
+
+        if (res.status === 201 && data.success) {
+          if (data.outcome === 'completed_partial_images') {
+            // Partial image success
+            if (partialProductTitle) partialProductTitle.textContent = data.title;
+            if (partialWarningText) {
+              partialWarningText.textContent = `Product created as Draft, but ${data.images_failed} of ${data.images_requested} images could not be imported.`;
+            }
+            if (viewPartialAdminBtn) viewPartialAdminBtn.href = data.shopify_admin_url;
+            setPopupState('partial-image-success');
+          } else {
+            // Full success
+            if (successProductTitle) successProductTitle.textContent = data.title;
+            if (successVariantsCount) successVariantsCount.textContent = String(data.variants_created);
+            if (successImagesCount) successImagesCount.textContent = `${data.images_succeeded} of ${data.images_requested}`;
+            if (viewShopifyAdminBtn) viewShopifyAdminBtn.href = data.shopify_admin_url;
+            setPopupState('success');
+          }
+          return;
+        }
+
+        if (res.status === 409) {
+          const duplicateUrl = (data as { shopify_admin_url?: string }).shopify_admin_url;
+          if (duplicateUrl && viewDuplicateAdminBtn) {
+            viewDuplicateAdminBtn.href = duplicateUrl;
+          }
+          setPopupState('duplicate');
+          return;
+        }
+
+        if (res.status === 502 || res.status === 504) {
+          const errCode = (data as { error?: { code?: string } }).error?.code;
+          if (errCode === 'UNKNOWN_OUTCOME') {
+            if (checkAdminProductsBtn) {
+              checkAdminProductsBtn.href = `https://admin.shopify.com/store/${activeStoreDomain?.replace('.myshopify.com', '')}/products`;
+            }
+            setPopupState('uncertain-outcome');
+            return;
+          }
+        }
+
+        // Generic error
+        const msg = (data as { error?: { message?: string } }).error?.message || 'Import failed.';
+        if (extractionErrorMsg) extractionErrorMsg.textContent = msg;
+        setPopupState('extraction-error');
+      } catch (err: unknown) {
+        if (extractionErrorMsg) {
+          extractionErrorMsg.textContent = `Network error: ${(err as Error).message}`;
+        }
+        setPopupState('extraction-error');
+      }
+    });
+  }
+
+  // 6. Connect Button
   if (connectBtn && domainInput) {
     connectBtn.addEventListener('click', () => {
       const raw = domainInput.value.trim().toLowerCase();
@@ -147,7 +463,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const domain = raw.endsWith('.myshopify.com') ? raw : `${raw}.myshopify.com`;
-
       const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/;
       if (!domainRegex.test(domain)) {
         showStatus('Invalid store domain format. Example: my-store.myshopify.com', true);
@@ -165,37 +480,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 3. Disconnect Button Handler
-  if (disconnectBtn) {
-    disconnectBtn.addEventListener('click', async () => {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-        return;
-      }
-
-      const { shopify_jwt } = await chrome.storage.local.get(['shopify_jwt']);
-
-      if (shopify_jwt) {
-        try {
-          await fetch(`${CONFIG.BACKEND_URL}/api/disconnect`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${shopify_jwt}`,
-            },
-          });
-        } catch {
-          // Ignore network errors during disconnect
-        }
-      }
-
-      await chrome.storage.local.remove([
-        'shopify_jwt',
-        'shopify_store_name',
-        'shopify_store_currency',
-        'shopify_shop_domain',
-      ]);
-
-      renderDisconnected();
-      showStatus('Store disconnected successfully.', false);
+  // 7. Navigation & Retry Buttons
+  if (mismatchRetryBtn) {
+    mismatchRetryBtn.addEventListener('click', () => {
+      checkCurrentTabAndExtract();
     });
   }
+
+  if (extractionRetryBtn) {
+    extractionRetryBtn.addEventListener('click', () => {
+      checkCurrentTabAndExtract();
+    });
+  }
+
+  if (importAnotherBtn) {
+    importAnotherBtn.addEventListener('click', () => {
+      checkCurrentTabAndExtract();
+    });
+  }
+
+  if (partialDoneBtn) {
+    partialDoneBtn.addEventListener('click', () => {
+      checkCurrentTabAndExtract();
+    });
+  }
+
+  if (disconnectNonAeBtn) {
+    disconnectNonAeBtn.addEventListener('click', async () => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        await chrome.storage.local.remove([
+          'shopify_jwt',
+          'shopify_store_name',
+          'shopify_store_currency',
+          'shopify_shop_domain',
+        ]);
+      }
+      currentJwt = null;
+      updateBadgeDisconnected();
+      setPopupState('disconnected');
+    });
+  }
+
+  // Initialize
+  await initializeApp();
 });

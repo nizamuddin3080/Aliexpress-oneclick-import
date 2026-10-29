@@ -91,18 +91,18 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M4-01 | Implement popup HTML layout | M1-08 | Semantic HTML matching `design.md` | Containers for all 12 UI states | Manual | [ ] |
-| M4-02 | Implement popup CSS stylesheet | M4-01 | Polaris-inspired clean styling | 400×520px fixed layout, high contrast | Manual | [ ] |
-| M4-03 | Implement popup state machine | M4-01 | TypeScript state controller | Handles transitions cleanly | Unit test | [ ] |
-| M4-04 | Implement currency match validator | M2-10, M3-07 | Compares source currency with store | Blocks import if currencies mismatch | Unit test | [ ] |
-| M4-05 | Implement unsupported product guard | M3-01 | Checks option dimension count | Displays "⛔ Unsupported" if >3 options | Unit test | [ ] |
-| M4-06 | Implement decimal-safe markup calculator | M4-03 | Updates selling price in real-time | Decimal arithmetic with half-up rounding | Unit test | [ ] |
-| M4-07 | Connect content script extraction to popup | M3-06, M4-03 | Message passing triggers extraction | Popup displays extracted preview | Manual E2E | [ ] |
-| M4-08 | Implement loading & progress states | M4-03 | Animated feedback during extraction/import | Buttons disabled during processing | Manual E2E | [ ] |
-| M4-09 | Implement full success state screen | M4-03 | Displays draft link & summary | Direct clickable link to Shopify Admin | Manual E2E | [ ] |
-| M4-10 | Implement partial image success screen | M4-03 | Displays draft link + image warning | Warns merchant of failed images | Manual E2E | [ ] |
-| M4-11 | Implement uncertain outcome screen | M4-03 | Explains timeout; no blind retry | Provides Shopify Admin products link | Manual E2E | [ ] |
-| M4-12 | Implement keyboard & screen-reader a11y | M4-01 | WCAG AA compliance | Tab order, ARIA live regions verified | Manual | [ ] |
+| M4-01 | Implement popup HTML layout | M1-08 | Semantic HTML matching `design.md` | Containers for all 12 UI states | Manual | [x] |
+| M4-02 | Implement popup CSS stylesheet | M4-01 | Polaris-inspired clean styling | 400×520px fixed layout, high contrast | Manual | [x] |
+| M4-03 | Implement popup state machine | M4-01 | TypeScript state controller | Handles transitions cleanly | Unit test | [x] |
+| M4-04 | Implement currency match validator | M2-10, M3-07 | Compares source currency with store | Blocks import if currencies mismatch | Unit test | [x] |
+| M4-05 | Implement unsupported product guard | M3-01 | Checks option dimension count | Displays "⛔ Unsupported" if >3 options | Unit test | [x] |
+| M4-06 | Implement decimal-safe markup calculator | M4-03 | Updates selling price in real-time | Decimal arithmetic with half-up rounding | Unit test | [x] |
+| M4-07 | Connect content script extraction to popup | M3-06, M4-03 | Message passing triggers extraction | Popup displays extracted preview | Manual E2E | [x] |
+| M4-08 | Implement loading & progress states | M4-03 | Animated feedback during extraction/import | Buttons disabled during processing | Manual E2E | [x] |
+| M4-09 | Implement full success state screen | M4-03 | Displays draft link & summary | Direct clickable link to Shopify Admin | Manual E2E | [x] |
+| M4-10 | Implement partial image success screen | M4-03 | Displays draft link + image warning | Warns merchant of failed images | Manual E2E | [x] |
+| M4-11 | Implement uncertain outcome screen | M4-03 | Explains timeout; no blind retry | Provides Shopify Admin products link | Manual E2E | [x] |
+| M4-12 | Implement keyboard & screen-reader a11y | M4-01 | WCAG AA compliance | Tab order, ARIA live regions verified | Manual | [x] |
 
 ---
 
