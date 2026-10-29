@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AliExpress to Shopify Importer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app" class="popup-container">
+    <header id="app-header" class="app-header">
+      <div class="logo-area">
+        <span class="icon">📦</span>
+        <h1 class="title">AliExpress Importer</h1>
+      </div>
+      <div id="store-badge" class="store-badge store-badge--disconnected">
+        <span class="status-indicator"></span>
+        <span id="badge-text">Not Connected</span>
+      </div>
+    </header>
+
+    <main id="app-content" class="app-content">
+      <!-- State 1: Disconnected / Initial State -->
+      <section id="state-disconnected" class="state-view">
+        <div class="card card--centered">
+          <div class="card-icon">🏪</div>
+          <h2>Connect Shopify Store</h2>
+          <p class="description">Connect your store to import AliExpress products directly as Drafts.</p>
+          <div class="form-group">
+            <label for="shop-domain-input">Store Domain</label>
+            <div class="input-with-suffix">
+              <input type="text" id="shop-domain-input" placeholder="your-store" spellcheck="false" autocomplete="off">
+              <span class="suffix">.myshopify.com</span>
+            </div>
+          </div>
+          <button id="btn-connect" class="btn btn--primary" type="button">
+            Connect Shopify Store
+          </button>
+          <p class="security-note">🔒 Authenticates securely via Shopify Dev Dashboard</p>
+        </div>
+      </section>
+
+      <!-- Status notification area for M1 -->
+      <section id="status-banner" class="status-banner hidden" role="alert" aria-live="polite">
+        <p id="status-text"></p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "AliExpress to Shopify One-Click Importer",
+  "version": "1.0.0",
+  "description": "Import AliExpress products into Shopify as Drafts with one click.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.aliexpress.com/*",
+    "*://*.aliexpress.ru/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Import to Shopify"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.aliexpress.com/item/*.html*",
+        "*://*.aliexpress.ru/item/*.html*"
+      ],
+      "js": ["content/extractor.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup/auth-callback.html"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

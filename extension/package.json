@@ -1,0 +1,22 @@
+{
+  "name": "aliexpress-shopify-importer-extension",
+  "version": "1.0.0",
+  "description": "Chrome Extension (MV3) for AliExpress to Shopify One-Click Importer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.307",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.5"
+  }
+}

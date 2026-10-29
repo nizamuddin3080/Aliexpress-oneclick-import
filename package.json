@@ -1,0 +1,20 @@
+{
+  "name": "aliexpress-shopify-importer",
+  "version": "1.0.0",
+  "description": "Chrome Extension & Backend to import AliExpress products into Shopify as Drafts",
+  "private": true,
+  "workspaces": [
+    "server",
+    "extension"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=server && npm run build --workspace=extension",
+    "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=extension",
+    "test": "npm run test --workspace=server && npm run test --workspace=extension",
+    "server:dev": "npm run dev --workspace=server",
+    "extension:dev": "npm run dev --workspace=extension"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

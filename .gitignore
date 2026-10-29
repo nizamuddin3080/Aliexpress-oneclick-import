@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs
+dist/
+build/
+extension/dist/
+server/dist/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.cert
+
+# Database Persistence
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/data/
+data/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
