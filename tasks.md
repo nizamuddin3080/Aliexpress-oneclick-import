@@ -73,17 +73,17 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M3-01 | Define `ExtractedProduct` interface | M1-04 | Shared TypeScript type definition | Includes `sourceCurrency`, variants, options | Typecheck | [ ] |
-| M3-02 | Implement script state parser | M1-04 | Extracts `window.runParams` or SSR state | Extracts title, options, prices, currency | Unit test | [ ] |
-| M3-03 | Implement JSON-LD schema extractor | M1-04 | Parses `application/ld+json` blocks | Extracts fallback title, price, currency | Unit test | [ ] |
-| M3-04 | Implement rendered DOM element extractor | M1-04 | Scrapes visible price, title, thumbnails | Handles client-rendered DOM layout | Unit test | [ ] |
-| M3-05 | Implement main-world bridge script | M3-02 | Injects script to read window variables | Safely posts data to content script | Manual E2E | [ ] |
-| M3-06 | Implement multi-strategy orchestrator | M3-02..M3-05 | Priority chain: Script → JSON-LD → DOM | Returns best available data or error | Unit test | [ ] |
-| M3-07 | Implement currency extraction & validation | M3-06 | Detects ISO 4217 code (USD, EUR, etc.) | Throws error if currency unknown | Unit test | [ ] |
-| M3-08 | Implement client-side DOMPurify sanitizer | M1-09 | Strips malicious HTML from description | Removes scripts, iframes, inline handlers | Unit test | [ ] |
-| M3-09 | Implement HTTPS source URL validator | M1-04 | Validates AliExpress hostname allowlist | Rejects non-HTTPS or foreign domains | Unit test | [ ] |
-| M3-10 | Extract and validate AliExpress image URLs | M3-06 | Extracts HTTPS CDN URLs | Verifies `*.alicdn.com` hosts | Unit test | [ ] |
-| M3-11 | Validate extraction on live AliExpress pages | M3-06, M3-10 | Tested on simple, multi-variant products | Verifies title, price, currency extracted | Manual E2E | [ ] |
+| M3-01 | Define `ExtractedProduct` interface | M1-04 | Shared TypeScript type definition | Includes `sourceCurrency`, variants, options | Typecheck | [x] |
+| M3-02 | Implement script state parser | M1-04 | Extracts `window.runParams` or SSR state | Extracts title, options, prices, currency | Unit test | [x] |
+| M3-03 | Implement JSON-LD schema extractor | M1-04 | Parses `application/ld+json` blocks | Extracts fallback title, price, currency | Unit test | [x] |
+| M3-04 | Implement rendered DOM element extractor | M1-04 | Scrapes visible price, title, thumbnails | Handles client-rendered DOM layout | Unit test | [x] |
+| M3-05 | Implement main-world bridge script | M3-02 | Injects script to read window variables | Safely posts data to content script | Manual E2E | [x] |
+| M3-06 | Implement multi-strategy orchestrator | M3-02..M3-05 | Priority chain: Script → JSON-LD → DOM | Returns best available data or error | Unit test | [x] |
+| M3-07 | Implement currency extraction & validation | M3-06 | Detects ISO 4217 code (USD, EUR, etc.) | Throws error if currency unknown | Unit test | [x] |
+| M3-08 | Implement client-side DOMPurify sanitizer | M1-09 | Strips malicious HTML from description | Removes scripts, iframes, inline handlers | Unit test | [x] |
+| M3-09 | Implement HTTPS source URL validator | M1-04 | Validates AliExpress hostname allowlist | Rejects non-HTTPS or foreign domains | Unit test | [x] |
+| M3-10 | Extract and validate AliExpress image URLs | M3-06 | Extracts HTTPS CDN URLs | Verifies `*.alicdn.com` hosts | Unit test | [x] |
+| M3-11 | Validate extraction on live AliExpress pages | M3-06, M3-10 | Tested on simple, multi-variant products | Verifies title, price, currency extracted | Manual E2E | [x] |
 
 ---
 
