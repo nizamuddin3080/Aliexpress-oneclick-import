@@ -110,15 +110,15 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M5-01 | Implement Shopify Admin GraphQL client | M2-05 | Reusable GraphQL POST utility | Pinned to API version `2026-01` | Unit test | [ ] |
-| M5-02 | Implement `import_attempts` reservation | M2-01 | `BEGIN IMMEDIATE` reservation insert | Prevents concurrent duplicate runs | Unit test | [ ] |
-| M5-03 | Implement server-side input validation | M1-09 | Schema validator for import payload | Enforces limits, HTTPS, currency match | Unit test | [ ] |
-| M5-04 | Implement server-side HTML sanitizer | M1-09 | `sanitize-html` defense-in-depth | Strips XSS vectors from descriptions | Unit test | [ ] |
-| M5-05 | Build `productSet` mutation payload | M5-01 | Constructs GraphQL mutation input | `status: DRAFT`, options, variants, files | Unit test | [ ] |
-| M5-06 | Execute product creation service | M5-02, M5-05 | Sends mutation and processes result | Updates attempt to `completed` or `failed` | Integration | [ ] |
-| M5-07 | Handle Shopify GraphQL `userErrors` | M5-06 | Parses field errors into clean text | Returns HTTP 422 with readable errors | Unit test | [ ] |
-| M5-08 | Implement timeout & uncertain outcome guard | M5-06 | Flags `needs_reconciliation` on timeout | Returns `502 UNKNOWN_OUTCOME` | Unit test | [ ] |
-| M5-09 | End-to-end Draft product creation test | M5-06 | Product appears in Shopify Admin | Status is strictly Draft, not Active | Manual E2E | [ ] |
+| M5-01 | Implement Shopify Admin GraphQL client | M2-05 | Reusable GraphQL POST utility | Pinned to API version `2026-01` | Unit test | [x] |
+| M5-02 | Implement `import_attempts` reservation | M2-01 | `BEGIN IMMEDIATE` reservation insert | Prevents concurrent duplicate runs | Unit test | [x] |
+| M5-03 | Implement server-side input validation | M1-09 | Schema validator for import payload | Enforces limits, HTTPS, currency match | Unit test | [x] |
+| M5-04 | Implement server-side HTML sanitizer | M1-09 | `sanitize-html` defense-in-depth | Strips XSS vectors from descriptions | Unit test | [x] |
+| M5-05 | Build `productSet` mutation payload | M5-01 | Constructs GraphQL mutation input | `status: DRAFT`, options, variants, files | Unit test | [x] |
+| M5-06 | Execute product creation service | M5-02, M5-05 | Sends mutation and processes result | Updates attempt to `completed` or `failed` | Integration | [x] |
+| M5-07 | Handle Shopify GraphQL `userErrors` | M5-06 | Parses field errors into clean text | Returns HTTP 422 with readable errors | Unit test | [x] |
+| M5-08 | Implement timeout & uncertain outcome guard | M5-06 | Flags `needs_reconciliation` on timeout | Returns `502 UNKNOWN_OUTCOME` | Unit test | [x] |
+| M5-09 | End-to-end Draft product creation test | M5-06 | Product appears in Shopify Admin | Status is strictly Draft, not Active | Manual E2E | [x] |
 
 ---
 
@@ -126,14 +126,14 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M6-01 | Implement variant matrix generator | M5-05 | Maps AliExpress options to Shopify format | Generates `productOptions` & variants | Unit test | [ ] |
-| M6-02 | Enforce 3-option limit rejection | M6-01 | Rejects products with 4+ options | Rejects before calling Shopify | Unit test | [ ] |
-| M6-03 | Enforce supported product envelope limits | M5-03 | Enforces limits on title, variants, body | Rejects oversized product payloads | Unit test | [ ] |
-| M6-04 | Implement direct image pass-through | M5-05 | Passes CDN image URLs to `files` field | Attaches images via `originalSource` | Unit test | [ ] |
-| M6-05 | Validate direct image pass-through (Spike) | M6-04, M5-09 | Verifies if Shopify fetches AliExpress CDN | Records result; triggers M6-06 if blocked | Manual E2E | [ ] |
-| M6-06 | Implement server-side staged upload fallback | M6-05 | Safe fetch + `stagedUploadsCreate` | Used if direct image fetch fails | Integration | [ ] |
-| M6-07 | Implement image outcome accounting | M6-04 | Tracks requested vs succeeded images | Returns `completed_partial_images` if some fail | Unit test | [ ] |
-| M6-08 | Attach source tracking metafields | M5-05 | Attaches source ID and URL metafields | Saved under `custom.aliexpress_source_*` | Integration | [ ] |
+| M6-01 | Implement variant matrix generator | M5-05 | Maps AliExpress options to Shopify format | Generates `productOptions` & variants | Unit test | [x] |
+| M6-02 | Enforce 3-option limit rejection | M6-01 | Rejects products with 4+ options | Rejects before calling Shopify | Unit test | [x] |
+| M6-03 | Enforce supported product envelope limits | M5-03 | Enforces limits on title, variants, body | Rejects oversized product payloads | Unit test | [x] |
+| M6-04 | Implement direct image pass-through | M5-05 | Passes CDN image URLs to `files` field | Attaches images via `originalSource` | Unit test | [x] |
+| M6-05 | Validate direct image pass-through (Spike) | M6-04, M5-09 | Verifies if Shopify fetches AliExpress CDN | Records result; triggers M6-06 if blocked | Manual E2E | [x] |
+| M6-06 | Implement server-side staged upload fallback | M6-05 | Safe fetch + `stagedUploadsCreate` | Used if direct image fetch fails | Integration | [x] |
+| M6-07 | Implement image outcome accounting | M6-04 | Tracks requested vs succeeded images | Returns `completed_partial_images` if some fail | Unit test | [x] |
+| M6-08 | Attach source tracking metafields | M5-05 | Attaches source ID and URL metafields | Saved under `custom.aliexpress_source_*` | Integration | [x] |
 
 ---
 
@@ -141,12 +141,12 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M7-01 | Implement decimal-safe money library | M1-09 | Exact integer cents or `decimal.js` | Zero floating-point rounding errors | Unit test | [ ] |
-| M7-02 | Implement variant price validation | M7-01 | Validates that every variant has price | Stops import if any price missing | Unit test | [ ] |
-| M7-03 | Implement `GET /api/import/:sourceId` | M5-02 | Checks existing status in database | Returns `completed`, `pending`, or `none` | Unit test | [ ] |
-| M7-04 | Implement automated reconciliation query | M5-01 | Queries Shopify by source ID metafield | Resolves `needs_reconciliation` attempts | Integration | [ ] |
-| M7-05 | Enforce pre-mutation duplicate check | M7-03, M7-04 | Checks database and reconciles first | Returns 409 if already imported | Unit test | [ ] |
-| M7-06 | Concurrency stress test | M7-05 | 2 parallel requests for same item | Exactly 1 product created in Shopify | Integration | [ ] |
+| M7-01 | Implement decimal-safe money library | M1-09 | Exact integer cents or `decimal.js` | Zero floating-point rounding errors | Unit test | [x] |
+| M7-02 | Implement variant price validation | M7-01 | Validates that every variant has price | Stops import if any price missing | Unit test | [x] |
+| M7-03 | Implement `GET /api/import/:sourceId` | M5-02 | Checks existing status in database | Returns `completed`, `pending`, or `none` | Unit test | [x] |
+| M7-04 | Implement automated reconciliation query | M5-01 | Queries Shopify by source ID metafield | Resolves `needs_reconciliation` attempts | Integration | [x] |
+| M7-05 | Enforce pre-mutation duplicate check | M7-03, M7-04 | Checks database and reconciles first | Returns 409 if already imported | Unit test | [x] |
+| M7-06 | Concurrency stress test | M7-05 | 2 parallel requests for same item | Exactly 1 product created in Shopify | Integration | [x] |
 
 ---
 
@@ -154,14 +154,14 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M8-01 | Implement Safe Fetch SSRF protection | M1-09 | Validates resolved IP against private ranges | Blocks loopback, 10.x, 192.168.x, 169.254.x | Unit test | [ ] |
-| M8-02 | Implement redirect revalidation | M8-01 | Re-checks protocol, host, IP on redirect | Max 1 redirect; blocks malicious redirect | Unit test | [ ] |
-| M8-03 | Implement rate limiting middleware | M1-12 | Capped at 10 requests/min per store | Returns 429 when threshold exceeded | Unit test | [ ] |
-| M8-04 | Implement request size limit middleware | M1-12 | JSON body capped at 1 MB | Returns 413 for oversized payloads | Unit test | [ ] |
-| M8-05 | Implement strict CORS for extension origin | M1-12 | Allows only `chrome-extension://<ID>` | Rejects arbitrary origins | Unit test | [ ] |
-| M8-06 | Execute complete unit test suite | M8-01..M8-05 | 100% pass across all unit tests | All pricing, validation, SSRF tests pass | `npm test` | [ ] |
-| M8-07 | Execute integration & concurrency tests | M7-06, M8-06 | All integration tests pass | Reservation & reconciliation verified | `npm test` | [ ] |
-| M8-08 | Full end-to-end import verification | M8-07 | Live test on real AliExpress product | Product created as Draft with variants | Manual E2E | [ ] |
+| M8-01 | Implement Safe Fetch SSRF protection | M1-09 | Validates resolved IP against private ranges | Blocks loopback, 10.x, 192.168.x, 169.254.x | Unit test | [x] |
+| M8-02 | Implement redirect revalidation | M8-01 | Re-checks protocol, host, IP on redirect | Max 1 redirect; blocks malicious redirect | Unit test | [x] |
+| M8-03 | Implement rate limiting middleware | M1-12 | Capped at 10 requests/min per store | Returns 429 when threshold exceeded | Unit test | [x] |
+| M8-04 | Implement request size limit middleware | M1-12 | JSON body capped at 1 MB | Returns 413 for oversized payloads | Unit test | [x] |
+| M8-05 | Implement strict CORS for extension origin | M1-12 | Allows only `chrome-extension://<ID>` | Rejects arbitrary origins | Unit test | [x] |
+| M8-06 | Execute complete unit test suite | M8-01..M8-05 | 100% pass across all unit tests | All pricing, validation, SSRF tests pass | `npm test` | [x] |
+| M8-07 | Execute integration & concurrency tests | M7-06, M8-06 | All integration tests pass | Reservation & reconciliation verified | `npm test` | [x] |
+| M8-08 | Full end-to-end import verification | M8-07 | Live test on real AliExpress product | Product created as Draft with variants | Manual E2E | [x] |
 
 ---
 
@@ -169,12 +169,12 @@
 
 | ID | Task | Dependencies | Expected Outcome | Acceptance Criteria | Test | Status |
 |----|------|-------------|-------------------|---------------------|------|--------|
-| M9-01 | Finalize `README.md` | M8-08 | Accurate, comprehensive overview | Reflects final system architecture | Review | [ ] |
-| M9-02 | Document Shopify Dev Dashboard setup | M8-08 | Step-by-step setup instructions | Custom distribution & OAuth setup guide | Review | [ ] |
-| M9-03 | Document Extension installation | M8-08 | Unpacked extension install guide | Steps to load in Chrome and record ID | Review | [ ] |
-| M9-04 | Document SQLite volume & backup ops | M8-08 | Operations, backup & restore guide | `sqlite3 .backup` & integrity check | Review | [ ] |
-| M9-05 | Perform final credential & secret audit | M8-08 | Git repository verified free of secrets | No tokens or private keys in git log | Review | [ ] |
-| M9-06 | Document known limitations & compliance | M8-08 | Currency, 3-option, copyright notes | Explicit merchant responsibility notes | Review | [ ] |
+| M9-01 | Finalize `README.md` | M8-08 | Accurate, comprehensive overview | Reflects final system architecture | Review | [x] |
+| M9-02 | Document Shopify Dev Dashboard setup | M8-08 | Step-by-step setup instructions | Custom distribution & OAuth setup guide | Review | [x] |
+| M9-03 | Document Extension installation | M8-08 | Unpacked extension install guide | Steps to load in Chrome and record ID | Review | [x] |
+| M9-04 | Document SQLite volume & backup ops | M8-08 | Operations, backup & restore guide | `sqlite3 .backup` & integrity check | Review | [x] |
+| M9-05 | Perform final credential & secret audit | M8-08 | Git repository verified free of secrets | No tokens or private keys in git log | Review | [x] |
+| M9-06 | Document known limitations & compliance | M8-08 | Currency, 3-option, copyright notes | Explicit merchant responsibility notes | Review | [x] |
 
 ---
 

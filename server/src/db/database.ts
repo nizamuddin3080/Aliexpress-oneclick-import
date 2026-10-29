@@ -24,7 +24,7 @@ export interface ImportAttemptRecord {
   store_id: number;
   source_product_id: string;
   source_url: string;
-  status: 'pending' | 'completed' | 'failed' | 'needs_reconciliation';
+  status: 'pending' | 'completed' | 'completed_partial_images' | 'failed' | 'needs_reconciliation';
   shopify_product_id: string | null;
   shopify_admin_url: string | null;
   product_title: string;
@@ -257,4 +257,210 @@ export function wipeAndDisconnectStore(shopDomain: string, db = getDatabase()): 
 
   stmt.run(zeroToken, zeroIv, zeroTag, store.id);
   return true;
+}
+
+export interface ReserveAttemptParams {
+  storeId: number;
+  sourceProductId: string;
+  sourceUrl: string;
+  productTitle: string;
+  sourceCurrency: string;
+  markupPercentage: number;
+  imagesRequested: number;
+}
+
+export type ReservationErrorCode =
+  | 'DUPLICATE_PRODUCT'
+  | 'IMPORT_IN_PROGRESS'
+  | 'NEEDS_RECONCILIATION'
+  | 'STALE_PENDING';
+
+export class ReservationError extends Error {
+  readonly code: ReservationErrorCode;
+  readonly existingAttempt: ImportAttemptRecord;
+
+  constructor(code: ReservationErrorCode, message: string, existingAttempt: ImportAttemptRecord) {
+    super(message);
+    this.name = 'ReservationError';
+    this.code = code;
+    this.existingAttempt = existingAttempt;
+  }
+}
+
+/**
+ * Fetches the latest import attempt for a given store and AliExpress product ID.
+ */
+export function getImportAttempt(
+  storeId: number,
+  sourceProductId: string,
+  db = getDatabase()
+): ImportAttemptRecord | null {
+  const stmt = db.prepare(
+    'SELECT * FROM import_attempts WHERE store_id = ? AND source_product_id = ? ORDER BY id DESC LIMIT 1'
+  );
+  const row = stmt.get(storeId, sourceProductId) as unknown as ImportAttemptRecord | undefined;
+  return row || null;
+}
+
+/**
+ * Safely parses a SQLite datetime string into UTC epoch milliseconds.
+ * SQLite datetime('now') produces 'YYYY-MM-DD HH:MM:SS' without timezone.
+ */
+export function parseUtcDate(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  if (dateStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    return new Date(dateStr).getTime();
+  }
+  const isoStr = dateStr.replace(' ', 'T') + 'Z';
+  return new Date(isoStr).getTime();
+}
+
+/**
+ * Reserves an import attempt using SQLite BEGIN IMMEDIATE for concurrency control.
+ * Prevents race conditions and duplicate creation attempts.
+ */
+export function reserveImportAttempt(
+  params: ReserveAttemptParams,
+  db = getDatabase()
+): ImportAttemptRecord {
+  // Use BEGIN IMMEDIATE to serialize concurrent write transactions
+  db.exec('BEGIN IMMEDIATE;');
+
+  try {
+    const checkStmt = db.prepare(
+      'SELECT * FROM import_attempts WHERE store_id = ? AND source_product_id = ? ORDER BY id DESC LIMIT 1'
+    );
+    const existing = checkStmt.get(params.storeId, params.sourceProductId) as unknown as
+      | ImportAttemptRecord
+      | undefined;
+
+    if (existing) {
+      if (existing.status === 'completed' || existing.status === 'completed_partial_images') {
+        throw new ReservationError(
+          'DUPLICATE_PRODUCT',
+          `Product has already been imported (Shopify Product: ${existing.shopify_product_id}).`,
+          existing
+        );
+      }
+
+      if (existing.status === 'pending') {
+        const createdAt = parseUtcDate(existing.created_at);
+        const now = Date.now();
+        const elapsedMinutes = (now - createdAt) / (1000 * 60);
+
+        if (elapsedMinutes < 5) {
+          throw new ReservationError(
+            'IMPORT_IN_PROGRESS',
+            'An import is currently in progress for this product.',
+            existing
+          );
+        } else {
+          // Stale pending (> 5 minutes). Update to needs_reconciliation
+          db.prepare("UPDATE import_attempts SET status = 'needs_reconciliation', updated_at = datetime('now') WHERE id = ?")
+            .run(existing.id);
+          const updated = checkStmt.get(params.storeId, params.sourceProductId) as unknown as ImportAttemptRecord;
+          throw new ReservationError(
+            'NEEDS_RECONCILIATION',
+            'A previous import attempt timed out or did not finish cleanly. Reconciliation required.',
+            updated
+          );
+        }
+      }
+
+      if (existing.status === 'needs_reconciliation') {
+        throw new ReservationError(
+          'NEEDS_RECONCILIATION',
+          'A previous import attempt had an uncertain outcome. Reconciliation required before retry.',
+          existing
+        );
+      }
+
+      if (existing.status === 'failed') {
+        // Safe to clear failed attempt before starting a new reservation
+        db.prepare('DELETE FROM import_attempts WHERE id = ?').run(existing.id);
+      }
+    }
+
+    const insertStmt = db.prepare(`
+      INSERT INTO import_attempts (
+        store_id,
+        source_product_id,
+        source_url,
+        status,
+        product_title,
+        source_currency,
+        markup_percentage,
+        images_requested
+      ) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)
+    `);
+
+    insertStmt.run(
+      params.storeId,
+      params.sourceProductId,
+      params.sourceUrl,
+      params.productTitle,
+      params.sourceCurrency,
+      params.markupPercentage,
+      params.imagesRequested
+    );
+
+    const created = checkStmt.get(params.storeId, params.sourceProductId) as unknown as ImportAttemptRecord;
+    db.exec('COMMIT;');
+    return created;
+  } catch (err) {
+    db.exec('ROLLBACK;');
+    throw err;
+  }
+}
+
+export interface UpdateAttemptParams {
+  status: 'pending' | 'completed' | 'completed_partial_images' | 'failed' | 'needs_reconciliation';
+  shopifyProductId?: string | null;
+  shopifyAdminUrl?: string | null;
+  imagesSucceeded?: number | null;
+  errorMessage?: string | null;
+}
+
+/**
+ * Updates an import attempt record with the mutation outcome.
+ */
+export function updateImportAttempt(
+  attemptId: number,
+  updates: UpdateAttemptParams,
+  db = getDatabase()
+): ImportAttemptRecord {
+  const stmt = db.prepare(`
+    UPDATE import_attempts SET
+      status = ?,
+      shopify_product_id = COALESCE(?, shopify_product_id),
+      shopify_admin_url = COALESCE(?, shopify_admin_url),
+      images_succeeded = COALESCE(?, images_succeeded),
+      error_message = ?,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `);
+
+  stmt.run(
+    updates.status,
+    updates.shopifyProductId ?? null,
+    updates.shopifyAdminUrl ?? null,
+    updates.imagesSucceeded ?? null,
+    updates.errorMessage ?? null,
+    attemptId
+  );
+
+  const fetchStmt = db.prepare('SELECT * FROM import_attempts WHERE id = ? LIMIT 1');
+  const record = fetchStmt.get(attemptId) as unknown as ImportAttemptRecord | undefined;
+  if (!record) {
+    throw new Error(`Import attempt with ID ${attemptId} not found.`);
+  }
+  return record;
+}
+
+/**
+ * Deletes an import attempt (e.g. after reconciling that a product was NOT created in Shopify).
+ */
+export function deleteImportAttempt(attemptId: number, db = getDatabase()): void {
+  const stmt = db.prepare('DELETE FROM import_attempts WHERE id = ?');
+  stmt.run(attemptId);
 }

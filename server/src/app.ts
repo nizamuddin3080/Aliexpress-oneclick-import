@@ -3,6 +3,8 @@ import cors from 'cors';
 import { config } from './config.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { importRouter } from './routes/import.js';
+import { rateLimiter } from './middleware/rate-limiter.js';
 
 export function createApp(): Express {
   const app = express();
@@ -46,10 +48,16 @@ export function createApp(): Express {
   // 3. Health & Diagnostic Routes
   app.use(healthRouter);
 
-  // 4. Authentication & Store Lifecycle Routes
+  // 4. Rate Limiting Middleware for Protected API
+  app.use('/api', rateLimiter());
+
+  // 5. Authentication & Store Lifecycle Routes
   app.use(authRouter);
 
-  // 5. 404 Not Found Handler
+  // 6. Import & Product Creation Routes
+  app.use(importRouter);
+
+  // 7. 404 Not Found Handler
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       success: false,
