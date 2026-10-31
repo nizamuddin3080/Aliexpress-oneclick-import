@@ -8,6 +8,15 @@ export interface ParsedUrlResult {
 const ALLOWED_ALIEXPRESS_HOSTS = [
   'aliexpress.com',
   'aliexpress.ru',
+  'aliexpress.us',
+  'aliexpress.fr',
+  'aliexpress.es',
+  'aliexpress.it',
+  'aliexpress.de',
+  'aliexpress.pl',
+  'aliexpress.com.br',
+  'aliexpress.co.kr',
+  'aliexpress.co.uk',
 ];
 
 const ALLOWED_IMAGE_HOSTS = [

@@ -19,6 +19,13 @@ describe('URL Parser & Security Allowlist (M3-09, M3-10, UV-01..UV-11)', () => {
       expect(res.productId).toBe('1005006123456789');
     });
 
+    it('accepts US domain detail URLs (UV-02b)', () => {
+      const res = parseAndValidateAliExpressUrl('https://www.aliexpress.us/item/1005006123456789.html');
+      expect(res.isValid).toBe(true);
+      expect(res.productId).toBe('1005006123456789');
+      expect(res.canonicalUrl).toBe('https://www.aliexpress.us/item/1005006123456789.html');
+    });
+
     it('accepts mobile subdomain URLs (UV-03)', () => {
       const res = parseAndValidateAliExpressUrl('https://m.aliexpress.com/item/1005006123456789.html?spm=a2g0n');
       expect(res.isValid).toBe(true);

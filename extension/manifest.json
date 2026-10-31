@@ -10,7 +10,16 @@
   ],
   "host_permissions": [
     "*://*.aliexpress.com/*",
-    "*://*.aliexpress.ru/*"
+    "*://*.aliexpress.ru/*",
+    "*://*.aliexpress.us/*",
+    "*://*.aliexpress.fr/*",
+    "*://*.aliexpress.es/*",
+    "*://*.aliexpress.it/*",
+    "*://*.aliexpress.de/*",
+    "*://*.aliexpress.pl/*",
+    "*://*.aliexpress.com.br/*",
+    "*://*.aliexpress.co.kr/*",
+    "*://*.aliexpress.co.uk/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -23,8 +32,17 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.aliexpress.com/item/*.html*",
-        "*://*.aliexpress.ru/item/*.html*"
+        "*://*.aliexpress.com/item/*",
+        "*://*.aliexpress.ru/item/*",
+        "*://*.aliexpress.us/item/*",
+        "*://*.aliexpress.fr/item/*",
+        "*://*.aliexpress.es/item/*",
+        "*://*.aliexpress.it/item/*",
+        "*://*.aliexpress.de/item/*",
+        "*://*.aliexpress.pl/item/*",
+        "*://*.aliexpress.com.br/item/*",
+        "*://*.aliexpress.co.kr/item/*",
+        "*://*.aliexpress.co.uk/item/*"
       ],
       "js": ["content/extractor.js"],
       "run_at": "document_idle"
