@@ -296,6 +296,93 @@ describe('AliExpress Parsers & Orchestrator (M3-02..M3-06, M3-11)', () => {
       expect(parsed.options[0].name).toBe('Color');
       expect(parsed.options[0].values).toEqual(['Black', 'White', 'Navy Stripe', 'Red Stripe']);
     });
+
+    it('extracts Color and Size from real AliExpress data-sku-col and sku-item--property markup', () => {
+      document.body.innerHTML = `
+        <div data-pl="product-title"><h1>Men Winter Warm Fleece Jacket</h1></div>
+        <div class="price--current--H7sGzqb"><span>US $28.50</span></div>
+        <div class="image-view--previewBox--Gk_f0Y1"><img src="https://ae01.alicdn.com/kf/Sjacket.jpg"></div>
+        <div class="sku-item--wrap--t9Qszzx" data-sleek-node-id="qfHKSE">
+          <div class="sku-item--property--HuasaIz" data-sleek-node-id="O2OAXN">
+            <div class="sku-item--title--Z0HLO87" data-sleek-node-id="4I1CYf">
+              <span data-sleek-node-id="74jHzB">Color:&nbsp;<span data-sleek-node-id="YwU1gl">Blue</span></span>
+            </div>
+            <div class="extend--wrap--yXwoDbO" data-sleek-node-id="jkztmt">
+              <div class="extend--content--VuIQZia" data-sleek-node-id="i5PPxJ">
+                <div data-sleek-node-id="uRv8tV">
+                  <div class="sku-item--box--Lrl6ZXB" data-sleek-node-id="jG12vY">
+                    <div class="sku-item--skus--StEhULs" data-sku-row="14" data-sleek-node-id="s4Snuf">
+                      <div data-sku-col="14-193" class="sku-item--image--jMUnnGA" data-sleek-node-id="od8TTZ">
+                        <img src="https://ae-pic-a1.aliexpress-media.com/kf/Scc61922c45894e5c9b8d33d5209fa568E.jpg" alt="Black" data-sleek-node-id="tECIcm">
+                      </div>
+                      <div data-sku-col="14-771" class="sku-item--selected--ITGY_EO sku-item--image--jMUnnGA" data-sleek-node-id="pPm6HL">
+                        <img src="https://ae-pic-a1.aliexpress-media.com/kf/S6f7a157d22324c76af0fe855e466c3b4C.jpg" alt="Blue" data-sleek-node-id="aHfy1n">
+                      </div>
+                    </div>
+                  </div>
+                  <iframe class="extend--iframe--to7hHIV" data-sleek-node-id="F9J2zF"></iframe>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="sku-item--property--HuasaIz" data-sleek-node-id="SZObTS">
+            <div class="sku-item--title--Z0HLO87" data-sleek-node-id="9btVf5">
+              <span data-sleek-node-id="tIUv0W">Size:&nbsp;<span data-sleek-node-id="q5DPdC">S(50-55kg)</span></span>
+              <span class="sku-item--sizeIcon--we3E_so" data-sleek-node-id="1Ru7Dl">Size Chart</span>
+            </div>
+            <div class="sku-item--box--Lrl6ZXB" data-sleek-node-id="ZwKl75">
+              <div class="sku-item--skus--StEhULs" data-sku-row="5" data-sleek-node-id="ddzLhE">
+                <div data-sku-col="5-100014064" class="sku-item--selected--ITGY_EO sku-item--text--hYfAukP" title="S(50-55kg)"><span data-sleek-node-id="2Of3iQ">S(50-55kg)</span></div>
+                <div data-sku-col="5-361386" class="sku-item--text--hYfAukP" title="M(55-60kg)"><span data-sleek-node-id="8Gl8QY">M(55-60kg)</span></div>
+                <div data-sku-col="5-361385" class="sku-item--text--hYfAukP" title="L(60-70kg)"><span data-sleek-node-id="fC93RT">L(60-70kg)</span></div>
+                <div data-sku-col="5-100014065" class="sku-item--text--hYfAukP" title="XL(70-78kg)"><span data-sleek-node-id="6tDRzf">XL(70-78kg)</span></div>
+                <div data-sku-col="5-4182" class="sku-item--text--hYfAukP" title="XXL(78-88kg)"><span data-sleek-node-id="6dYHc4">XXL(78-88kg)</span></div>
+                <div data-sku-col="5-4183" class="sku-item--text--hYfAukP" title="XXXL(88-95kg)"><span data-sleek-node-id="utFHq2">XXXL(88-95kg)</span></div>
+                <div data-sku-col="5-200000990" class="sku-item--text--hYfAukP" title="4XL(95-102kg)"><span data-sleek-node-id="yZjMYa">4XL(95-102kg)</span></div>
+                <div data-sku-col="5-200000991" class="sku-item--text--hYfAukP" title="5XL(102-110kg)"><span data-sleek-node-id="MXXXtw">5XL(102-110kg)</span></div>
+                <div data-sku-col="5-200005259" class="sku-item--text--hYfAukP" title="6XL(110-117kg)"><span data-sleek-node-id="6mMAWL">6XL(110-117kg)</span></div>
+              </div>
+            </div>
+            <div class="sku-item--sizeInfo--Q85U4is" data-sleek-node-id="rX7Qfb">
+              <div class="sku-item--sizeInfoItem--xpkw8zD"><span class="sku-item--sizeInfoName--FLZC_Tr">Asian Size:</span><span class="sku-item--sizeInfoValue--qMoFmsf">S</span></div>
+              <div class="sku-item--sizeInfoItem--xpkw8zD"><span class="sku-item--sizeInfoName--FLZC_Tr">Eu Size:</span><span class="sku-item--sizeInfoValue--qMoFmsf">XXS</span></div>
+              <div class="sku-item--sizeInfoItem--xpkw8zD"><span class="sku-item--sizeInfoName--FLZC_Tr">Bust:</span><span class="sku-item--sizeInfoValue--qMoFmsf">96.0 cm</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const parsed = extractFromDom(document);
+
+      expect(parsed.options.length).toBe(2);
+      expect(parsed.options[0].name).toBe('Color');
+      expect(parsed.options[0].values).toEqual(['Black', 'Blue']);
+
+      expect(parsed.options[1].name).toBe('Size');
+      expect(parsed.options[1].values).toEqual([
+        'S(50-55kg)',
+        'M(55-60kg)',
+        'L(60-70kg)',
+        'XL(70-78kg)',
+        'XXL(78-88kg)',
+        'XXXL(88-95kg)',
+        '4XL(95-102kg)',
+        '5XL(102-110kg)',
+        '6XL(110-117kg)',
+      ]);
+
+      // 2 colors * 9 sizes = 18 generated variants
+      expect(parsed.variants.length).toBe(18);
+      expect(parsed.variants[0].option_values).toEqual({
+        Color: 'Black',
+        Size: 'S(50-55kg)',
+      });
+      expect(parsed.variants[17].option_values).toEqual({
+        Color: 'Blue',
+        Size: '6XL(110-117kg)',
+      });
+      expect(parsed.variants[0].price).toBe('28.50');
+    });
   });
 
   describe('Multi-Strategy Orchestrator & Integrity Rules', () => {

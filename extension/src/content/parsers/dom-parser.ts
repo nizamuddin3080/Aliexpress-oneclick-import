@@ -326,10 +326,11 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
   // Specific row selectors for SKU property groups on AliExpress
   // Note: NEVER include 'div[class*="sku-item"]' or 'div[class*="skuItem"]' because individual swatches have classes like sku-item--item--...
   const propertyGroupSelectors = [
+    'div[class*="sku-item--property"]',
+    'div[class*="sku-item--wrap"] > div',
     'div[class*="sku--property"]',
     'div[class*="sku-property"]',
     'div[class*="skuProperty"]',
-    'div[class*="sku-item--property"]',
     'div[class*="sku-item--skuItem"]',
     'div[class*="skuItem--group"]',
     'div[class*="sku-prop--wrap"]',
@@ -401,7 +402,11 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
     for (const tSel of titleSelectors) {
       const tEl = group.querySelector(tSel);
       if (tEl && tEl.textContent) {
-        const raw = tEl.textContent.trim();
+        let raw = tEl.textContent.replace(/\u00a0/g, ' ').trim();
+        const iconEl = tEl.querySelector('[class*="sizeIcon"], [class*="sizeChart"], [class*="chart"]');
+        if (iconEl && iconEl.textContent) {
+          raw = raw.replace(iconEl.textContent, '').trim();
+        }
         let clean = raw.split(':')[0].trim();
         clean = clean.replace(/^(select|choose)\s+/i, '').trim();
         if (clean.length > 0 && clean.length < 30) {
@@ -415,8 +420,12 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
     if (!optName) {
       const headingEl = group.querySelector('h2, h3, h4, div[class*="label"], span[class*="label"]');
       if (headingEl && headingEl.textContent) {
-        const raw = headingEl.textContent.trim().split(':')[0].trim();
-        const clean = raw.replace(/^(select|choose)\s+/i, '').trim();
+        let raw = headingEl.textContent.replace(/\u00a0/g, ' ').trim();
+        const iconEl = headingEl.querySelector('[class*="sizeIcon"], [class*="sizeChart"], [class*="chart"]');
+        if (iconEl && iconEl.textContent) {
+          raw = raw.replace(iconEl.textContent, '').trim();
+        }
+        const clean = raw.split(':')[0].replace(/^(select|choose)\s+/i, '').trim();
         if (clean.length > 0 && clean.length < 30 && !clean.includes('$')) {
           optName = clean;
         }
@@ -425,15 +434,55 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
 
     // 2. Find items / swatches in this group
     let items: Element[] = [];
-    for (const iSel of itemSelectors) {
-      const foundItems = Array.from(group.querySelectorAll(iSel));
-      if (foundItems.length > 0) {
-        items = foundItems;
-        break;
+
+    // Priority 1: Direct swatches with data-sku-col attribute (standard modern AliExpress)
+    const skuColItems = Array.from(group.querySelectorAll('[data-sku-col]'));
+    if (skuColItems.length > 0) {
+      items = skuColItems;
+    }
+
+    // Priority 2: Children of dedicated SKU swatches container (sku-item--skus, data-sku-row, sku-property-list)
+    if (items.length === 0) {
+      const skusContainer = group.querySelector(
+        'div[class*="sku-item--skus"], div[data-sku-row], ul[class*="sku-property-list"], div[class*="sku-content"], div[class*="sku-items"]'
+      );
+      if (skusContainer) {
+        items = Array.from(skusContainer.children).filter((c) => {
+          if (c.tagName === 'IFRAME') return false;
+          return Boolean(c.getAttribute('data-sku-col') || c.querySelector('img') || c.textContent?.trim());
+        });
       }
     }
 
-    // Fallback item detection: clickable buttons, radios, or direct children with content
+    // Priority 3: Specific swatch item class selectors
+    if (items.length === 0) {
+      const specificItemSelectors = [
+        'div[class*="sku-item--image"]',
+        'div[class*="sku-item--text"]',
+        'div[class*="sku-property-item"]',
+        'li[class*="sku-property-item"]',
+        'div[class*="sku-item--item"]',
+        'div[class*="item--item"]',
+        'div[class*="skuItem--item"]',
+        'li[class*="sku-item"]',
+        'button[class*="sku"]',
+        'div[data-sku-id]',
+        'div[data-property-id]',
+        'div[class*="sku-value"]',
+        'li[class*="sku-value"]',
+        'span[class*="sku-value"]',
+      ];
+
+      for (const iSel of specificItemSelectors) {
+        const foundItems = Array.from(group.querySelectorAll(iSel));
+        if (foundItems.length > 0) {
+          items = foundItems;
+          break;
+        }
+      }
+    }
+
+    // Priority 4: Fallback item detection - clickable buttons, radios, or direct children with content
     if (items.length === 0) {
       const titleEl = group.querySelector(titleSelectors.join(','));
       const buttons = Array.from(
@@ -450,6 +499,16 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
         });
       }
     }
+
+    // Strictly exclude any size chart / info tables, iframes, or non-swatch meta blocks
+    items = items.filter((item) => {
+      const isSizeInfo = Boolean(
+        item.closest('[class*="sizeInfo"], [class*="size-info"], [class*="sizeChart"], [class*="size-chart"]') ||
+        item.classList.contains('extend--iframe') ||
+        item.tagName === 'IFRAME'
+      );
+      return !isSizeInfo;
+    });
 
     // Filter out nested items (so we don't count an item and its child wrapper)
     items = items.filter(
@@ -485,24 +544,25 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
     for (const item of items) {
       let valName: string | null = null;
 
-      // Check img alt or title (swatch)
+      // 1. Check img alt or title (swatch)
       const img = item.tagName === 'IMG' ? (item as HTMLImageElement) : item.querySelector('img');
       if (img) {
         valName = img.getAttribute('alt') || img.getAttribute('title');
       }
 
-      // Check title attribute, aria-label, data-value, data-name
+      // 2. Check title attribute, aria-label, data-value, data-name, data-title
       if (!valName) {
         valName =
           item.getAttribute('title') ||
           item.getAttribute('aria-label') ||
           item.getAttribute('data-value') ||
-          item.getAttribute('data-name');
+          item.getAttribute('data-name') ||
+          item.getAttribute('data-title');
       }
 
-      // Check visible text content
+      // 3. Check visible text content
       if (!valName && item.textContent) {
-        const text = item.textContent.trim();
+        const text = item.textContent.replace(/\u00a0/g, ' ').trim();
         // Ignore long text that looks like description or price
         if (text.length > 0 && text.length <= 40 && !text.includes('$')) {
           valName = text;
@@ -510,7 +570,7 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
       }
 
       if (valName) {
-        const cleanVal = valName.replace(/\s+/g, ' ').trim();
+        const cleanVal = valName.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         if (cleanVal && !seenValues.has(cleanVal.toLowerCase())) {
           seenValues.add(cleanVal.toLowerCase());
           optValues.push(cleanVal);
