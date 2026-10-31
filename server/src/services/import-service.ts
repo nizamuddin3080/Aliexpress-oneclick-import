@@ -103,8 +103,62 @@ export function buildShopifyAdminProductsUrl(shopDomain: string): string {
 }
 
 /**
+ * Verifies if a product previously imported into Shopify still exists in the merchant's store.
+ * If the merchant deleted the product in Shopify Admin, returns null so the stale record can be cleared.
+ * Returns undefined if verification is indeterminate (e.g. mock fetch or network failure).
+ */
+export async function verifyProductExistsInShopify(
+  store: AuthenticatedStore,
+  attempt: ImportAttemptRecord
+): Promise<{ id: string; title: string; status: string } | null | undefined> {
+  // 1. Direct GID node check (instant, does not wait for search indexing)
+  if (attempt.shopify_product_id) {
+    try {
+      const response = await executeShopifyGraphQL<{ node?: { id: string; title: string; status: string } | null }>({
+        shopDomain: store.shopDomain,
+        accessToken: store.accessToken,
+        query: `
+          query CheckProductNode($id: ID!) {
+            node(id: $id) {
+              ... on Product {
+                id
+                title
+                status
+              }
+            }
+          }
+        `,
+        variables: { id: attempt.shopify_product_id },
+        timeoutMs: 8_000,
+      });
+
+      if (response.data && typeof response.data === 'object' && 'node' in response.data) {
+        if (response.data.node === null) {
+          return null; // Confirmed deleted in Shopify
+        }
+        if (response.data.node?.id) {
+          return response.data.node; // Confirmed still exists
+        }
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // 2. If no GID was recorded, attempt metafield search
+  try {
+    const existing = await findProductBySourceId(store.shopDomain, store.accessToken, attempt.source_product_id);
+    if (existing) return existing;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Checks the status of an import for a given AliExpress product ID.
- * Automatically reconciles any uncertain outcome or stale pending record against Shopify.
+ * Automatically reconciles any uncertain outcome, stale pending record, or deleted Shopify product.
  */
 export async function checkImportStatus(
   store: AuthenticatedStore,
@@ -116,8 +170,29 @@ export async function checkImportStatus(
     return { status: 'not_imported' };
   }
 
-  // 1. Completed state
+  // 1. Completed state: verify if product still exists in Shopify
   if (attempt.status === 'completed' || attempt.status === 'completed_partial_images') {
+    try {
+      const existingInShopify = await verifyProductExistsInShopify(store, attempt);
+      if (existingInShopify === null) {
+        // Merchant definitively deleted the product in Shopify Admin! Clean up stale record to allow fresh re-import.
+        deleteImportAttempt(attempt.id);
+        return { status: 'not_imported' };
+      }
+
+      if (existingInShopify) {
+        return {
+          status: 'completed',
+          shopify_product_id: existingInShopify.id,
+          shopify_admin_url: buildShopifyAdminProductUrl(store.shopDomain, existingInShopify.id),
+          product_title: existingInShopify.title,
+          imported_at: attempt.updated_at,
+        };
+      }
+    } catch {
+      // Fall through to existing DB record
+    }
+
     return {
       status: 'completed',
       shopify_product_id: attempt.shopify_product_id || undefined,
@@ -253,6 +328,14 @@ export async function executeImport(
   }
 
   const data = payload as ImportRequestBody;
+
+  // If force_reimport is requested, clear any previous import attempt record
+  if (data.force_reimport) {
+    const existingAttempt = getImportAttempt(store.id, data.source_product_id);
+    if (existingAttempt) {
+      deleteImportAttempt(existingAttempt.id);
+    }
+  }
 
   // 2. Pre-check / Reconciliation
   const statusCheck = await checkImportStatus(store, data.source_product_id);

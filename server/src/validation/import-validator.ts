@@ -25,6 +25,7 @@ export interface ImportRequestBody {
   variants: ImportVariantInput[];
   markup_percentage: number;
   shipping_cost?: string | number;
+  force_reimport?: boolean;
 }
 
 export interface ValidationErrorField {

@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Duplicate view elements
   const viewDuplicateAdminBtn = document.getElementById('btn-view-duplicate-admin') as HTMLAnchorElement | null;
+  const reimportBtn = document.getElementById('btn-reimport') as HTMLButtonElement | null;
 
   // Uncertain outcome elements
   const checkAdminProductsBtn = document.getElementById('btn-check-admin-products') as HTMLAnchorElement | null;
@@ -425,94 +426,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 5. Import Button Handler
-  if (importBtn) {
-    importBtn.addEventListener('click', async () => {
-      if (!currentProduct || !currentJwt) {
-        showStatus('Missing product data or authentication token.', true);
+  // 5. Import Button Handler & Re-import Handler
+  async function executeImportRequest(forceReimport = false): Promise<void> {
+    if (!currentProduct || !currentJwt) {
+      showStatus('Missing product data or authentication token.', true);
+      return;
+    }
+
+    setPopupState('importing');
+
+    const markup = previewMarkupInput ? parseFloat(previewMarkupInput.value) || 0 : 30;
+    const shipping = previewShippingInput ? parseFloat(previewShippingInput.value) || 0 : 0;
+
+    const payload = {
+      source_product_id: currentProduct.source_product_id,
+      source_url: currentProduct.source_url,
+      source_currency: currentProduct.source_currency,
+      title: currentProduct.title,
+      description_html: currentProduct.description_html,
+      images: currentProduct.images,
+      options: currentProduct.options,
+      variants: currentProduct.variants,
+      markup_percentage: markup,
+      shipping_cost: shipping,
+      force_reimport: forceReimport,
+    };
+
+    try {
+      const res = await fetch(`${CONFIG.BACKEND_URL}/api/import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentJwt}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await res.json()) as ImportApiResponse;
+
+      if (res.status === 201 && data.success) {
+        if (data.outcome === 'completed_partial_images') {
+          // Partial image success
+          if (partialProductTitle) partialProductTitle.textContent = data.title;
+          if (partialWarningText) {
+            partialWarningText.textContent = `Product created as Draft, but ${data.images_failed} of ${data.images_requested} images could not be imported.`;
+          }
+          if (viewPartialAdminBtn) viewPartialAdminBtn.href = data.shopify_admin_url;
+          setPopupState('partial-image-success');
+        } else {
+          // Full success
+          if (successProductTitle) successProductTitle.textContent = data.title;
+          if (successVariantsCount) successVariantsCount.textContent = String(data.variants_created);
+          if (successImagesCount) successImagesCount.textContent = `${data.images_succeeded} of ${data.images_requested}`;
+          if (viewShopifyAdminBtn) viewShopifyAdminBtn.href = data.shopify_admin_url;
+          setPopupState('success');
+        }
         return;
       }
 
-      setPopupState('importing');
-
-      const markup = previewMarkupInput ? parseFloat(previewMarkupInput.value) || 0 : 30;
-      const shipping = previewShippingInput ? parseFloat(previewShippingInput.value) || 0 : 0;
-
-      const payload = {
-        source_product_id: currentProduct.source_product_id,
-        source_url: currentProduct.source_url,
-        source_currency: currentProduct.source_currency,
-        title: currentProduct.title,
-        description_html: currentProduct.description_html,
-        images: currentProduct.images,
-        options: currentProduct.options,
-        variants: currentProduct.variants,
-        markup_percentage: markup,
-        shipping_cost: shipping,
-      };
-
-      try {
-        const res = await fetch(`${CONFIG.BACKEND_URL}/api/import`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${currentJwt}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data = (await res.json()) as ImportApiResponse;
-
-        if (res.status === 201 && data.success) {
-          if (data.outcome === 'completed_partial_images') {
-            // Partial image success
-            if (partialProductTitle) partialProductTitle.textContent = data.title;
-            if (partialWarningText) {
-              partialWarningText.textContent = `Product created as Draft, but ${data.images_failed} of ${data.images_requested} images could not be imported.`;
-            }
-            if (viewPartialAdminBtn) viewPartialAdminBtn.href = data.shopify_admin_url;
-            setPopupState('partial-image-success');
-          } else {
-            // Full success
-            if (successProductTitle) successProductTitle.textContent = data.title;
-            if (successVariantsCount) successVariantsCount.textContent = String(data.variants_created);
-            if (successImagesCount) successImagesCount.textContent = `${data.images_succeeded} of ${data.images_requested}`;
-            if (viewShopifyAdminBtn) viewShopifyAdminBtn.href = data.shopify_admin_url;
-            setPopupState('success');
-          }
-          return;
+      if (res.status === 409) {
+        const duplicateUrl = (data as { shopify_admin_url?: string }).shopify_admin_url;
+        if (duplicateUrl && viewDuplicateAdminBtn) {
+          viewDuplicateAdminBtn.href = duplicateUrl;
         }
-
-        if (res.status === 409) {
-          const duplicateUrl = (data as { shopify_admin_url?: string }).shopify_admin_url;
-          if (duplicateUrl && viewDuplicateAdminBtn) {
-            viewDuplicateAdminBtn.href = duplicateUrl;
-          }
-          setPopupState('duplicate');
-          return;
-        }
-
-        if (res.status === 502 || res.status === 504) {
-          const errCode = (data as { error?: { code?: string } }).error?.code;
-          if (errCode === 'UNKNOWN_OUTCOME') {
-            if (checkAdminProductsBtn) {
-              checkAdminProductsBtn.href = `https://admin.shopify.com/store/${activeStoreDomain?.replace('.myshopify.com', '')}/products`;
-            }
-            setPopupState('uncertain-outcome');
-            return;
-          }
-        }
-
-        // Generic error
-        const msg = (data as { error?: { message?: string } }).error?.message || 'Import failed.';
-        if (extractionErrorMsg) extractionErrorMsg.textContent = msg;
-        setPopupState('extraction-error');
-      } catch (err: unknown) {
-        if (extractionErrorMsg) {
-          extractionErrorMsg.textContent = `Network error: ${(err as Error).message}`;
-        }
-        setPopupState('extraction-error');
+        setPopupState('duplicate');
+        return;
       }
+
+      if (res.status === 502 || res.status === 504) {
+        const errCode = (data as { error?: { code?: string } }).error?.code;
+        if (errCode === 'UNKNOWN_OUTCOME') {
+          if (checkAdminProductsBtn) {
+            checkAdminProductsBtn.href = `https://admin.shopify.com/store/${activeStoreDomain?.replace('.myshopify.com', '')}/products`;
+          }
+          setPopupState('uncertain-outcome');
+          return;
+        }
+      }
+
+      // Generic error
+      const msg = (data as { error?: { message?: string } }).error?.message || 'Import failed.';
+      if (extractionErrorMsg) extractionErrorMsg.textContent = msg;
+      setPopupState('extraction-error');
+    } catch (err: unknown) {
+      if (extractionErrorMsg) {
+        extractionErrorMsg.textContent = `Network error: ${(err as Error).message}`;
+      }
+      setPopupState('extraction-error');
+    }
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      executeImportRequest(false);
+    });
+  }
+
+  if (reimportBtn) {
+    reimportBtn.addEventListener('click', () => {
+      executeImportRequest(true);
     });
   }
 
