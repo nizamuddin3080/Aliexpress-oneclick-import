@@ -48,7 +48,7 @@ export const config: ServerConfig = {
     return process.env.SHOPIFY_API_VERSION || '2026-01';
   },
   get SHOPIFY_SCOPES(): string {
-    return process.env.SHOPIFY_SCOPES || 'write_products';
+    return process.env.SHOPIFY_SCOPES || 'write_products,write_files';
   },
   get EXTENSION_ID(): string {
     return process.env.EXTENSION_ID || '';

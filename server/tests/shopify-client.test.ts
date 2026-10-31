@@ -118,4 +118,61 @@ describe('Shopify Admin GraphQL Client', () => {
       expect((err as ShopifyClientError).code).toBe('TIMEOUT');
     }
   });
+
+  it('throws UNAUTHORIZED when Shopify returns ACCESS_DENIED in GraphQL errors', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          errors: [
+            {
+              message: 'Access denied for productSet field. Required access: write_products access scope.',
+              extensions: { code: 'ACCESS_DENIED' },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    try {
+      await executeShopifyGraphQL({
+        shopDomain: 'test-store.myshopify.com',
+        accessToken: 'token',
+        query: 'mutation { productSet { product { id } } }',
+      });
+      expect.fail('Expected UNAUTHORIZED error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ShopifyClientError);
+      expect((err as ShopifyClientError).code).toBe('UNAUTHORIZED');
+      expect((err as Error).message).toContain('Access denied for productSet field');
+    }
+  });
+
+  it('throws SHOPIFY_API_ERROR when Shopify returns generic GraphQL errors with HTTP 200', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          errors: [
+            {
+              message: 'Field mediaContentType is not defined by type FileSetInput',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    try {
+      await executeShopifyGraphQL({
+        shopDomain: 'test-store.myshopify.com',
+        accessToken: 'token',
+        query: 'mutation { productSet { product { id } } }',
+      });
+      expect.fail('Expected SHOPIFY_API_ERROR error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ShopifyClientError);
+      expect((err as ShopifyClientError).code).toBe('SHOPIFY_API_ERROR');
+      expect((err as Error).message).toContain('Field mediaContentType is not defined by type FileSetInput');
+    }
+  });
 });

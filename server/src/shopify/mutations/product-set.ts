@@ -76,7 +76,7 @@ export interface ShopifyProductVariantInput {
 export interface ShopifyFileInput {
   originalSource: string;
   alt: string;
-  mediaContentType: 'IMAGE';
+  contentType: 'IMAGE';
 }
 
 export interface ShopifyMetafieldInput {
@@ -91,7 +91,7 @@ export interface ProductSetInput {
   descriptionHtml?: string;
   vendor: string;
   status: 'DRAFT';
-  productOptions?: ShopifyProductOptionInput[];
+  productOptions: ShopifyProductOptionInput[];
   variants: ShopifyProductVariantInput[];
   files?: ShopifyFileInput[];
   metafields: ShopifyMetafieldInput[];
@@ -109,51 +109,65 @@ export interface ProductSetVariables {
  * 2. Description is sanitized.
  * 3. Variant prices reflect decimal-safe markup calculations.
  * 4. Tracking metafields (custom.aliexpress_source_id, custom.aliexpress_source_url) are attached.
+ * 5. Every variant has complete optionValues adhering to Shopify GraphQL schema requirements.
  */
 export function buildProductSetPayload(data: ImportRequestBody): ProductSetVariables {
   const sanitizedHtml = sanitizeDescriptionHtml(data.description_html);
 
-  // 1. Map options
-  let productOptions: ShopifyProductOptionInput[] | undefined;
-  if (data.options && data.options.length > 0) {
-    productOptions = data.options.map(opt => ({
+  // 1. Map options (Shopify requires at least 1 option; default to Title / Default Title if none)
+  const hasCustomOptions = Boolean(data.options && data.options.length > 0);
+  let productOptions: ShopifyProductOptionInput[];
+
+  if (hasCustomOptions) {
+    productOptions = data.options!.map(opt => ({
       name: opt.name,
       values: opt.values.map(val => ({ name: val })),
     }));
+  } else {
+    productOptions = [
+      {
+        name: 'Title',
+        values: [{ name: 'Default Title' }],
+      },
+    ];
   }
 
-  // 2. Map variants with calculated selling price
+  // 2. Map variants with calculated selling price and option values
   const variants: ShopifyProductVariantInput[] = data.variants.map((v, idx) => {
     const sellingPrice = calculateSellingPrice(v.price, data.markup_percentage);
     const sku = v.sku || `${data.source_product_id}-${idx + 1}`;
 
     const optionValues: ShopifyVariantOptionValueInput[] = [];
-    if (v.option_values && Object.keys(v.option_values).length > 0) {
-      for (const [optName, valName] of Object.entries(v.option_values)) {
+
+    if (hasCustomOptions) {
+      // For products with custom options, ensure every declared option is matched
+      for (const opt of data.options!) {
+        const valName = v.option_values?.[opt.name] || opt.values[0] || 'Default';
         optionValues.push({
-          optionName: optName,
+          optionName: opt.name,
           name: valName,
         });
       }
+    } else {
+      // Single variant / no custom options product
+      optionValues.push({
+        optionName: 'Title',
+        name: 'Default Title',
+      });
     }
 
-    const item: ShopifyProductVariantInput = {
+    return {
       price: sellingPrice,
       sku,
+      optionValues,
     };
-
-    if (optionValues.length > 0) {
-      item.optionValues = optionValues;
-    }
-
-    return item;
   });
 
-  // 3. Map images as files
+  // 3. Map images as files with contentType: 'IMAGE'
   const files: ShopifyFileInput[] = (data.images || []).map((img, idx) => ({
     originalSource: img.url,
     alt: img.alt || `${data.title} - Image ${idx + 1}`,
-    mediaContentType: 'IMAGE',
+    contentType: 'IMAGE',
   }));
 
   // 4. Attach source tracking metafields
@@ -176,6 +190,7 @@ export function buildProductSetPayload(data: ImportRequestBody): ProductSetVaria
     title: data.title,
     vendor: 'AliExpress Import',
     status: 'DRAFT', // STRICT REQUIREMENT: ALWAYS DRAFT, NEVER ACTIVE
+    productOptions,
     variants,
     files: files.length > 0 ? files : undefined,
     metafields,
@@ -183,10 +198,6 @@ export function buildProductSetPayload(data: ImportRequestBody): ProductSetVaria
 
   if (sanitizedHtml) {
     input.descriptionHtml = sanitizedHtml;
-  }
-
-  if (productOptions && productOptions.length > 0) {
-    input.productOptions = productOptions;
   }
 
   return {

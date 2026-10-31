@@ -419,14 +419,16 @@ export async function executeImport(
   // 7. Verify Product was created
   const createdProduct = response.data?.productSet?.product;
   if (!createdProduct || !createdProduct.id) {
+    const errorDetail = (response as { errors?: Array<{ message: string }> }).errors?.map(e => e.message).join('; ')
+      || 'Shopify product creation did not return a valid product ID.';
     updateImportAttempt(attempt.id, {
       status: 'failed',
-      errorMessage: 'Shopify returned empty product object.',
+      errorMessage: errorDetail,
     });
     throw new ImportHttpError(
       502,
       'SHOPIFY_API_ERROR',
-      'Shopify product creation did not return a valid product ID.',
+      errorDetail,
       { retryable: true, attemptId: attempt.id }
     );
   }

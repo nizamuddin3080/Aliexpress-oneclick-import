@@ -127,6 +127,30 @@ export async function executeShopifyGraphQL<T = Record<string, unknown>>(
       );
     }
 
+    // 5. Check for top-level GraphQL errors (GraphQL returns HTTP 200 with errors array)
+    if (json.errors && json.errors.length > 0) {
+      const messages = json.errors.map(e => e.message).join('; ');
+      const isAccessDenied = json.errors.some(e =>
+        e.message?.toLowerCase().includes('access denied') ||
+        e.message?.toLowerCase().includes('unauthorized') ||
+        (e.extensions as Record<string, unknown> | undefined)?.code === 'ACCESS_DENIED'
+      );
+
+      if (isAccessDenied) {
+        throw new ShopifyClientError(
+          'UNAUTHORIZED',
+          `Shopify Access Denied: ${messages}`,
+          { status: 403, responseBody: json }
+        );
+      }
+
+      throw new ShopifyClientError(
+        'SHOPIFY_API_ERROR',
+        `Shopify GraphQL Error: ${messages}`,
+        { status: 422, responseBody: json }
+      );
+    }
+
     return json;
   } catch (err: unknown) {
     clearTimeout(timeoutId);

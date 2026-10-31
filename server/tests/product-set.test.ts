@@ -76,16 +76,46 @@ describe('Shopify productSet Mutation Payload Builder', () => {
     expect(variants[1].optionValues).toEqual([{ optionName: 'Switch Type', name: 'Brown' }]);
   });
 
-  it('maps images to files array with originalSource and mediaContentType IMAGE', () => {
+  it('maps images to files array with originalSource and contentType IMAGE', () => {
     const payload = buildProductSetPayload(sampleData);
     const files = payload.input.files;
 
     expect(files).toHaveLength(2);
     expect(files?.[0].originalSource).toBe('https://ae01.alicdn.com/kf/img1.jpg');
     expect(files?.[0].alt).toBe('Keyboard Front');
-    expect(files?.[0].mediaContentType).toBe('IMAGE');
+    expect(files?.[0].contentType).toBe('IMAGE');
 
     expect(files?.[1].originalSource).toBe('https://ae01.alicdn.com/kf/img2.jpg');
     expect(files?.[1].alt).toContain('Minimalist Mechanical Keyboard');
+  });
+
+  it('assigns Default Title option and variant option values when product has no custom options', () => {
+    const dataWithoutOptions: ImportRequestBody = {
+      source_product_id: '999888',
+      source_url: 'https://www.aliexpress.com/item/999888.html',
+      source_currency: 'USD',
+      title: 'Simple Watch',
+      description_html: '<p>A simple watch</p>',
+      markup_percentage: 10,
+      variants: [
+        {
+          price: '20.00',
+        },
+      ],
+    };
+
+    const payload = buildProductSetPayload(dataWithoutOptions);
+    expect(payload.input.productOptions).toEqual([
+      {
+        name: 'Title',
+        values: [{ name: 'Default Title' }],
+      },
+    ]);
+    expect(payload.input.variants[0].optionValues).toEqual([
+      {
+        optionName: 'Title',
+        name: 'Default Title',
+      },
+    ]);
   });
 });
