@@ -120,33 +120,101 @@ function detectCurrencyFromMeta(doc: Document): string | null {
   return normalizeCurrency(metaCur);
 }
 
+function getImgSrc(el: Element): string | null {
+  const directSrc = el.getAttribute('src') ||
+    el.getAttribute('data-src') ||
+    el.getAttribute('data-lazy-src') ||
+    el.getAttribute('data-original') ||
+    el.getAttribute('data-ks-lazyload');
+
+  if (directSrc && !directSrc.startsWith('data:')) {
+    return directSrc;
+  }
+
+  // Check srcset
+  const srcset = el.getAttribute('srcset');
+  if (srcset) {
+    const parts = srcset.split(',');
+    const last = parts[parts.length - 1]?.trim().split(/\s+/)[0];
+    if (last && !last.startsWith('data:')) {
+      return last;
+    }
+  }
+
+  return null;
+}
+
 function extractImages(doc: Document, title: string | null): ProductImage[] {
   const images: ProductImage[] = [];
   const seenUrls = new Set<string>();
 
-  // 1. Gallery thumbnail list
-  const galleryImgs = doc.querySelectorAll(
-    '.image-view--previewBox--Gk_f0Y1 img, .slider--slider--1U5rF2Y img, ul.images-view-list img'
-  );
-
-  for (const img of galleryImgs) {
-    const src = img.getAttribute('src');
-    if (src) {
-      const clean = normalizeAndValidateImageUrl(src);
-      if (clean && !seenUrls.has(clean)) {
-        seenUrls.add(clean);
-        images.push({ url: clean, alt: title || 'Product Image' });
+  function addIfValid(rawUrl: string | null | undefined) {
+    if (!rawUrl) return;
+    const clean = normalizeAndValidateImageUrl(rawUrl);
+    if (clean && !seenUrls.has(clean)) {
+      // Exclude common avatar, flag, logo, and badge images
+      const lower = clean.toLowerCase();
+      if (
+        lower.includes('/avatar/') ||
+        lower.includes('/icon/') ||
+        lower.includes('/flags/') ||
+        lower.includes('badge') ||
+        lower.endsWith('.svg')
+      ) {
+        return;
       }
+      seenUrls.add(clean);
+      images.push({ url: clean, alt: title || 'Product Image' });
     }
   }
 
-  // 2. Open Graph meta image
-  const ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
-  if (ogImg) {
-    const clean = normalizeAndValidateImageUrl(ogImg);
-    if (clean && !seenUrls.has(clean)) {
-      seenUrls.add(clean);
-      images.push({ url: clean, alt: title || 'Product Image' });
+  // 1. Meta Image Tags (Open Graph, Twitter, link rel)
+  const metaSelectors = [
+    'meta[property="og:image"]',
+    'meta[property="og:image:secure_url"]',
+    'meta[name="twitter:image"]',
+    'meta[name="twitter:image:src"]',
+  ];
+  for (const sel of metaSelectors) {
+    const el = doc.querySelector(sel);
+    if (el) addIfValid(el.getAttribute('content'));
+  }
+
+  const linkImg = doc.querySelector('link[rel="image_src"]');
+  if (linkImg) addIfValid(linkImg.getAttribute('href'));
+
+  // 2. High-priority gallery, preview, slider, and magnifier elements
+  const gallerySelectors = [
+    '[class*="gallery"] img',
+    '[class*="slider"] img',
+    '[class*="image-view"] img',
+    '[class*="previewBox"] img',
+    '[class*="magnifier"] img',
+    '[class*="pic-view"] img',
+    '[class*="detail-gallery"] img',
+    '[class*="main-image"] img',
+    '[class*="poster"] img',
+    'ul.images-view-list img',
+    '.image-view img',
+    '.magnifier-image',
+    '#magnifier img',
+    '.pdp-body-top img',
+    '.pdp-info-right img',
+  ];
+
+  for (const sel of gallerySelectors) {
+    const matched = doc.querySelectorAll(sel);
+    for (const el of matched) {
+      addIfValid(getImgSrc(el));
+    }
+  }
+
+  // 3. Document-wide fallback: Scan any image tag pointing to an approved CDN
+  if (images.length === 0) {
+    const allImgs = doc.querySelectorAll('img');
+    for (const el of allImgs) {
+      addIfValid(getImgSrc(el));
+      if (images.length >= 20) break;
     }
   }
 

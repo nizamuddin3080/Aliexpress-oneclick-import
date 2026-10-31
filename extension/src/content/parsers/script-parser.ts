@@ -87,11 +87,44 @@ export function parseAliExpressDataPayload(payload: Record<string, unknown>): Sc
 
   // 2. Images
   const images: ProductImage[] = [];
-  const imageList = Array.isArray(imageModule?.imagePathList) ? imageModule.imagePathList : [];
+  const seenImageUrls = new Set<string>();
+
+  const imageList: unknown[] = [
+    ...(Array.isArray(imageModule?.imagePathList) ? imageModule.imagePathList : []),
+    ...(Array.isArray((root.galleryModule as Record<string, unknown>)?.imagePathList)
+      ? ((root.galleryModule as Record<string, unknown>).imagePathList as unknown[])
+      : []),
+    ...(Array.isArray((root.galleryModule as Record<string, unknown>)?.images)
+      ? ((root.galleryModule as Record<string, unknown>).images as unknown[])
+      : []),
+    ...(Array.isArray((root.productInfo as Record<string, unknown>)?.imagePathList)
+      ? ((root.productInfo as Record<string, unknown>).imagePathList as unknown[])
+      : []),
+    ...(Array.isArray(root.imagePathList) ? (root.imagePathList as unknown[]) : []),
+    ...(Array.isArray(root.images) ? (root.images as unknown[]) : []),
+  ];
+
+  // Also collect SKU property swatch images if available
+  if (skuModule && Array.isArray(skuModule.productSKUPropertyList)) {
+    for (const prop of skuModule.productSKUPropertyList) {
+      if (prop && Array.isArray(prop.skuPropertyValues)) {
+        for (const val of prop.skuPropertyValues) {
+          if (typeof val.skuPropertyImagePath === 'string') {
+            imageList.push(val.skuPropertyImagePath);
+          }
+          if (typeof val.skuImageUrl === 'string') {
+            imageList.push(val.skuImageUrl);
+          }
+        }
+      }
+    }
+  }
+
   for (const imgUrl of imageList) {
     if (typeof imgUrl === 'string') {
       const clean = normalizeAndValidateImageUrl(imgUrl);
-      if (clean) {
+      if (clean && !seenImageUrls.has(clean)) {
+        seenImageUrls.add(clean);
         images.push({ url: clean, alt: title || 'Product Image' });
       }
     }

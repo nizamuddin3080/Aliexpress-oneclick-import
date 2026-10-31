@@ -21,6 +21,12 @@ const ALLOWED_ALIEXPRESS_HOSTS = [
 
 const ALLOWED_IMAGE_HOSTS = [
   'alicdn.com',
+  'aliexpress-media.com',
+  'aliexpress.com',
+  'aliexpress.us',
+  'taobaocdn.com',
+  'tbcdn.cn',
+  'alibaba.com',
 ];
 
 /**
@@ -145,8 +151,10 @@ export function normalizeAndValidateImageUrl(rawUrl: string): string | null {
     return null;
   }
 
-  // Strip thumbnail suffixes like _640x640.jpg or _50x50.jpg or _Q90.jpg while preserving extension
+  // Strip thumbnail suffixes like _640x640.jpg or _50x50.jpg or _Q90.jpg or _.webp while preserving extension
   let cleanPath = parsed.pathname;
+  cleanPath = cleanPath.replace(/_\.webp$/i, '');
+  cleanPath = cleanPath.replace(/_\d+x\d+[^/]*\.(?:jpg|png|webp|jpeg)$/i, '.jpg');
   cleanPath = cleanPath.replace(/_\d+x\d+(\.(?:jpg|png|webp|jpeg))$/i, '$1');
   cleanPath = cleanPath.replace(/_Q\d+(\.(?:jpg|png|webp|jpeg))$/i, '$1');
 

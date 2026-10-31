@@ -1,4 +1,4 @@
-import { parseAndValidateAliExpressUrl } from './url-parser.js';
+import { parseAndValidateAliExpressUrl, normalizeAndValidateImageUrl } from './url-parser.js';
 import { requestMainWorldData } from './bridge.js';
 import { extractFromScriptTags, parseAliExpressDataPayload } from './parsers/script-parser.js';
 import { extractFromJsonLd } from './parsers/jsonld-parser.js';
@@ -113,6 +113,20 @@ export async function extractProductData(
       seenImageUrls.add(img.url);
       images.push(img);
       if (images.length >= 50) break; // Supported product envelope limit
+    }
+  }
+
+  if (images.length === 0 && typeof document !== 'undefined') {
+    // Document fallback for any open-graph or high-res product photos
+    const metaImg = document.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+      document.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content') ||
+      document.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+    if (metaImg) {
+      const clean = normalizeAndValidateImageUrl(metaImg);
+      if (clean && !seenImageUrls.has(clean)) {
+        seenImageUrls.add(clean);
+        images.push({ url: clean, alt: title });
+      }
     }
   }
 

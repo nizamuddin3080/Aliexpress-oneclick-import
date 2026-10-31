@@ -67,6 +67,16 @@ function isAllowedAliExpressUrl(urlStr: string): boolean {
   }
 }
 
+const ALLOWED_IMAGE_HOSTS = [
+  'alicdn.com',
+  'aliexpress-media.com',
+  'aliexpress.com',
+  'aliexpress.us',
+  'taobaocdn.com',
+  'tbcdn.cn',
+  'alibaba.com',
+];
+
 function isAllowedCdnUrl(urlStr: string): boolean {
   try {
     const parsed = new URL(urlStr);
@@ -77,7 +87,9 @@ function isAllowedCdnUrl(urlStr: string): boolean {
       return false;
     }
     const host = parsed.hostname.toLowerCase();
-    return host === 'alicdn.com' || host.endsWith('.alicdn.com');
+    return ALLOWED_IMAGE_HOSTS.some(
+      allowed => host === allowed || host.endsWith('.' + allowed)
+    );
   } catch {
     return false;
   }
@@ -194,7 +206,7 @@ export function validateImportPayload(
       if (!img || !img.url || typeof img.url !== 'string') {
         fields.push({ field: `images[${i}].url`, message: 'Image URL is required.' });
       } else if (!isAllowedCdnUrl(img.url)) {
-        fields.push({ field: `images[${i}].url`, message: 'Image URL must be an HTTPS alicdn.com URL without embedded credentials.' });
+        fields.push({ field: `images[${i}].url`, message: 'Image URL must be an approved HTTPS AliExpress CDN URL without embedded credentials.' });
       }
     }
   }

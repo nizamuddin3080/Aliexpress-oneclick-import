@@ -20,7 +20,15 @@ export class SafeFetchError extends Error {
   }
 }
 
-const ALLOWED_IMAGE_HOSTS = ['alicdn.com'];
+const ALLOWED_IMAGE_HOSTS = [
+  'alicdn.com',
+  'aliexpress-media.com',
+  'aliexpress.com',
+  'aliexpress.us',
+  'taobaocdn.com',
+  'tbcdn.cn',
+  'alibaba.com',
+];
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const FETCH_TIMEOUT_MS = 10_000; // 10s
 

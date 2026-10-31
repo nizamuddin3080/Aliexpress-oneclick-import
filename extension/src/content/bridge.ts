@@ -45,6 +45,14 @@ export function requestMainWorldData(timeoutMs = 500): Promise<Record<string, un
             payload = window.runParams;
           } else if (typeof window._init_data_ !== 'undefined') {
             payload = window._init_data_;
+          } else if (typeof window.__INITIAL_DATA__ !== 'undefined') {
+            payload = window.__INITIAL_DATA__;
+          } else if (typeof window.__INITIAL_STATE__ !== 'undefined') {
+            payload = window.__INITIAL_STATE__;
+          } else if (typeof window.pageData !== 'undefined') {
+            payload = window.pageData;
+          } else if (typeof window.__PAGE_DATA__ !== 'undefined') {
+            payload = window.__PAGE_DATA__;
           }
           window.dispatchEvent(new CustomEvent('${EVENT_NAME}', { detail: payload }));
         } catch (e) {
