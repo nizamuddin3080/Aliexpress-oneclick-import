@@ -143,9 +143,30 @@ export async function extractProductData(
 
   // Options & Variants resolution
   // Priority: ScriptData options -> DomData options
-  let options: ProductOption[] = (scriptData?.options && scriptData.options.length > 0)
+  const rawOptions: ProductOption[] = (scriptData?.options && scriptData.options.length > 0)
     ? scriptData.options
     : (domData?.options || []);
+
+  // Merge any options sharing the same name case-insensitively (e.g. multiple "Color" blocks)
+  const mergedOptions: ProductOption[] = [];
+  for (const opt of rawOptions) {
+    const existing = mergedOptions.find(
+      (m) => m.name.trim().toLowerCase() === opt.name.trim().toLowerCase()
+    );
+    if (existing) {
+      for (const val of opt.values) {
+        if (!existing.values.some((v) => v.toLowerCase() === val.toLowerCase())) {
+          existing.values.push(val);
+        }
+      }
+    } else {
+      mergedOptions.push({
+        name: opt.name.trim(),
+        values: [...opt.values],
+      });
+    }
+  }
+  const options: ProductOption[] = mergedOptions;
 
   // Priority: ScriptData variants (if non-empty and matched) -> DomData variants -> JsonLd variants
   let variants: ProductVariant[] = [];

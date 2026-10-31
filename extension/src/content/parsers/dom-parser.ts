@@ -305,58 +305,105 @@ function extractDescription(doc: Document): string | null {
 export function extractOptionsFromDom(doc: Document = document): ProductOption[] {
   const options: ProductOption[] = [];
 
-  // Group selectors for SKU properties on AliExpress
-  const propertyGroupSelectors = [
-    'div[class*="sku-property"]',
-    'div[class*="sku--property"]',
-    'div[class*="skuProperty"]',
-    'div[class*="sku-wrap"] > div',
-    'div[data-pl="product-sku"] > div',
-    'div[class*="Sku_Sku"]',
-    'div[class*="sku-item"]',
-    'div[class*="skuItem"]',
-    'div[class*="sku-prop"]',
+  // Title selectors indicating a property row heading (e.g. "Color: Black", "Size: M")
+  const titleSelectors = [
+    'div[class*="sku-title"]',
+    'span[class*="sku-title"]',
+    'div[class*="sku-item--title"]',
+    'span[class*="sku-item--title"]',
+    'div[class*="sku-prop-title"]',
+    'span[class*="sku-prop-title"]',
+    'div[class*="title--"]',
+    'span[class*="title--"]',
+    'div[class*="property-title"]',
+    'span[class*="property-title"]',
+    'div[class*="skuPropertyTitle"]',
+    'span[class*="skuPropertyTitle"]',
+    'div[class*="sku-name"]',
+    'span[class*="sku-name"]',
   ];
 
-  let propertyGroups: Element[] = [];
+  // Specific row selectors for SKU property groups on AliExpress
+  // Note: NEVER include 'div[class*="sku-item"]' or 'div[class*="skuItem"]' because individual swatches have classes like sku-item--item--...
+  const propertyGroupSelectors = [
+    'div[class*="sku--property"]',
+    'div[class*="sku-property"]',
+    'div[class*="skuProperty"]',
+    'div[class*="sku-item--property"]',
+    'div[class*="sku-item--skuItem"]',
+    'div[class*="skuItem--group"]',
+    'div[class*="sku-prop--wrap"]',
+    'div[class*="sku-prop"]',
+    'div[class*="sku-wrap"] > div',
+    'div[data-pl="product-sku"] > div',
+    'div[class*="sku-section"]',
+    'div[class*="Sku_Sku"]',
+  ];
+
+  let rawGroups: Element[] = [];
+
+  // Strategy 1: Find candidate groups matching known property group selectors
   for (const sel of propertyGroupSelectors) {
     const found = Array.from(doc.querySelectorAll(sel));
-    // Filter groups that have clickable item children or swatches
-    const valid = found.filter((g) =>
-      Boolean(
-        g.querySelector(
-          'img, button, [class*="item"], [data-sku-id], [data-property-id], [class*="sku"]'
-        )
-      )
-    );
-    if (valid.length > 0) {
-      propertyGroups = valid;
-      break;
+    if (found.length > 0) {
+      rawGroups.push(...found);
     }
   }
 
-  for (let gIdx = 0; gIdx < propertyGroups.length; gIdx++) {
-    const group = propertyGroups[gIdx];
+  // Strategy 2: If no candidate groups found, locate property rows via title elements
+  if (rawGroups.length === 0) {
+    for (const tSel of titleSelectors) {
+      const titles = Array.from(doc.querySelectorAll(tSel));
+      for (const t of titles) {
+        // Find row container: the parent or closest container
+        const row = t.closest('div[class*="sku"], div[class*="prop"], div[data-pl]') || t.parentElement;
+        if (row && !rawGroups.includes(row)) {
+          rawGroups.push(row);
+        }
+      }
+      if (rawGroups.length > 0) break;
+    }
+  }
 
-    // Find option title (e.g. "Color: Black", "Size: XL", "Color")
+  // Deduplicate raw groups
+  const uniqueGroups = Array.from(new Set(rawGroups));
+
+  // Hierarchy Guard: Filter out any element that is contained within another candidate group
+  // (e.g. an inner swatch container or swatch item inside a property row)
+  const candidateGroups = uniqueGroups.filter(
+    (g) => !uniqueGroups.some((parent) => parent !== g && parent.contains(g))
+  );
+
+  // Group Validation Guard:
+  // A genuine property group MUST either:
+  // 1) Contain an identifiable title element, OR
+  // 2) Contain at least 2 distinct selectable swatch items.
+  // Standalone swatches without titles are discarded.
+  const itemSelectors = [
+    'div[class*="sku-property-item"]',
+    'li[class*="sku-property-item"]',
+    'div[class*="sku-item--item"]',
+    'div[class*="item--item"]',
+    'div[class*="skuItem--item"]',
+    'li[class*="sku-item"]',
+    'button[class*="sku"]',
+    'div[data-sku-id]',
+    'div[data-property-id]',
+    'div[class*="sku-value"]',
+    'li[class*="sku-value"]',
+    'span[class*="sku-value"]',
+  ];
+
+  for (const group of candidateGroups) {
+    // 1. Find option title (e.g. "Color: Black", "Size: XL", "Color")
     let optName: string | null = null;
-    const titleSelectors = [
-      'div[class*="sku-title"]',
-      'span[class*="sku-title"]',
-      'div[class*="title--"]',
-      'span[class*="title--"]',
-      'div[class*="property-title"]',
-      'span[class*="property-title"]',
-      'div[class*="label"]',
-      'h2',
-      'h3',
-    ];
 
     for (const tSel of titleSelectors) {
       const tEl = group.querySelector(tSel);
       if (tEl && tEl.textContent) {
         const raw = tEl.textContent.trim();
-        const clean = raw.split(':')[0].trim();
+        let clean = raw.split(':')[0].trim();
+        clean = clean.replace(/^(select|choose)\s+/i, '').trim();
         if (clean.length > 0 && clean.length < 30) {
           optName = clean;
           break;
@@ -364,31 +411,19 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
       }
     }
 
-    // Fallback option name if title element not found
+    // Secondary title check: headings or labels
     if (!optName) {
-      if (group.querySelector('img')) {
-        optName = 'Color';
-      } else {
-        optName = gIdx === 0 ? 'Color' : gIdx === 1 ? 'Size' : `Option ${gIdx + 1}`;
+      const headingEl = group.querySelector('h2, h3, h4, div[class*="label"], span[class*="label"]');
+      if (headingEl && headingEl.textContent) {
+        const raw = headingEl.textContent.trim().split(':')[0].trim();
+        const clean = raw.replace(/^(select|choose)\s+/i, '').trim();
+        if (clean.length > 0 && clean.length < 30 && !clean.includes('$')) {
+          optName = clean;
+        }
       }
     }
 
-    // Find option values within group
-    const optValues: string[] = [];
-    const seenValues = new Set<string>();
-
-    const itemSelectors = [
-      'div[class*="sku-property-item"]',
-      'div[class*="sku-item--item"]',
-      'div[class*="item--item"]',
-      'li[class*="sku-property-item"]',
-      'div[class*="skuItem"]',
-      'button[class*="sku"]',
-      'div[data-sku-id]',
-      'div[data-property-id]',
-      'img[class*="sku"]',
-    ];
-
+    // 2. Find items / swatches in this group
     let items: Element[] = [];
     for (const iSel of itemSelectors) {
       const foundItems = Array.from(group.querySelectorAll(iSel));
@@ -398,34 +433,77 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
       }
     }
 
-    // Fallback: direct children if no specific item selector matched
+    // Fallback item detection: clickable buttons, radios, or direct children with content
     if (items.length === 0) {
-      items = Array.from(group.children).filter((c) =>
-        Boolean(c.querySelector('img') || c.textContent?.trim())
-      );
+      const titleEl = group.querySelector(titleSelectors.join(','));
+      const buttons = Array.from(
+        group.querySelectorAll('button, [role="button"], [role="radio"], [data-sku-id], [data-property-id]')
+      ).filter((b) => !titleEl || !titleEl.contains(b));
+
+      if (buttons.length > 0) {
+        items = buttons;
+      } else {
+        // Direct children excluding title element
+        items = Array.from(group.children).filter((c) => {
+          if (c === titleEl || titleEl?.contains(c)) return false;
+          return Boolean(c.querySelector('img') || c.textContent?.trim());
+        });
+      }
     }
+
+    // Filter out nested items (so we don't count an item and its child wrapper)
+    items = items.filter(
+      (item) => !items.some((other) => other !== item && other.contains(item))
+    );
+
+    // Validation Guard: If no title was found AND items.length < 2, discard this element
+    if (!optName && items.length < 2) {
+      continue;
+    }
+
+    // Fallback option name if title element was not found
+    if (!optName) {
+      const hasImage = group.querySelector('img') !== null;
+      if (hasImage && !options.some((o) => o.name.toLowerCase() === 'color')) {
+        optName = 'Color';
+      } else if (!options.some((o) => o.name.toLowerCase() === 'color')) {
+        optName = 'Color';
+      } else if (!options.some((o) => o.name.toLowerCase() === 'size')) {
+        optName = 'Size';
+      } else if (!options.some((o) => o.name.toLowerCase() === 'style')) {
+        optName = 'Style';
+      } else {
+        // Never generate Option 4, Option 5, Option 8, etc. Discard if exceeds 3.
+        continue;
+      }
+    }
+
+    // 3. Extract option values from items
+    const optValues: string[] = [];
+    const seenValues = new Set<string>();
 
     for (const item of items) {
       let valName: string | null = null;
 
-      // 1. Check img alt or title (swatch)
+      // Check img alt or title (swatch)
       const img = item.tagName === 'IMG' ? (item as HTMLImageElement) : item.querySelector('img');
       if (img) {
         valName = img.getAttribute('alt') || img.getAttribute('title');
       }
 
-      // 2. Check title attribute or aria-label
+      // Check title attribute, aria-label, data-value, data-name
       if (!valName) {
         valName =
           item.getAttribute('title') ||
           item.getAttribute('aria-label') ||
-          item.getAttribute('data-value');
+          item.getAttribute('data-value') ||
+          item.getAttribute('data-name');
       }
 
-      // 3. Check visible text content
+      // Check visible text content
       if (!valName && item.textContent) {
         const text = item.textContent.trim();
-        // Ignore long text that looks like a description or price block
+        // Ignore long text that looks like description or price
         if (text.length > 0 && text.length <= 40 && !text.includes('$')) {
           valName = text;
         }
@@ -440,11 +518,25 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
       }
     }
 
+    // 4. Merge values by Option Name (case-insensitive)
     if (optValues.length > 0) {
-      options.push({
-        name: optName,
-        values: optValues,
-      });
+      const cleanOptName = optName.trim();
+      const existingOpt = options.find(
+        (o) => o.name.trim().toLowerCase() === cleanOptName.toLowerCase()
+      );
+
+      if (existingOpt) {
+        for (const val of optValues) {
+          if (!existingOpt.values.some((v) => v.toLowerCase() === val.toLowerCase())) {
+            existingOpt.values.push(val);
+          }
+        }
+      } else {
+        options.push({
+          name: cleanOptName,
+          values: optValues,
+        });
+      }
     }
   }
 

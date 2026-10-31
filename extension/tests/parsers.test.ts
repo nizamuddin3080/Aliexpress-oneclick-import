@@ -225,6 +225,77 @@ describe('AliExpress Parsers & Orchestrator (M3-02..M3-06, M3-11)', () => {
       expect(parsed.variants[5].option_values).toEqual({ Color: 'Blue', Size: 'XL' });
       expect(parsed.variants[0].price).toBe('30.00');
     });
+
+    it('correctly groups modern AliExpress sku-item swatches into 2 options without treating swatches as separate options', () => {
+      document.body.innerHTML = `
+        <div data-pl="product-title"><h1>Wireless Controller</h1></div>
+        <div class="price--current--H7sGzqb"><span>US $19.99</span></div>
+        <div class="image-view--previewBox--Gk_f0Y1"><img src="https://ae01.alicdn.com/kf/Sctrl.jpg"></div>
+        <div class="sku-wrap">
+          <!-- Color property row with 4 swatches with images -->
+          <div class="sku-item--skuItem--A1">
+            <div class="sku-item--title--B1">Color: <span>Black</span></div>
+            <div class="sku-item--skus--C1">
+              <div class="sku-item--item--D1"><img alt="Black" src="https://ae01.alicdn.com/kf/Sblk.jpg"></div>
+              <div class="sku-item--item--D1"><img alt="White" src="https://ae01.alicdn.com/kf/Swht.jpg"></div>
+              <div class="sku-item--item--D1"><img alt="Red" src="https://ae01.alicdn.com/kf/Sred.jpg"></div>
+              <div class="sku-item--item--D1"><img alt="Blue" src="https://ae01.alicdn.com/kf/Sblu.jpg"></div>
+            </div>
+          </div>
+          <!-- Size property row with 4 swatches without images -->
+          <div class="sku-item--skuItem--A1">
+            <div class="sku-item--title--B1">Size: <span>Standard</span></div>
+            <div class="sku-item--skus--C1">
+              <div class="sku-item--item--D1"><span>Standard</span></div>
+              <div class="sku-item--item--D1"><span>Pro</span></div>
+              <div class="sku-item--item--D1"><span>Elite</span></div>
+              <div class="sku-item--item--D1"><span>Mini</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const parsed = extractFromDom(document);
+
+      // Must be exactly 2 options, NEVER 8 or 15!
+      expect(parsed.options.length).toBe(2);
+      expect(parsed.options[0].name).toBe('Color');
+      expect(parsed.options[0].values).toEqual(['Black', 'White', 'Red', 'Blue']);
+      expect(parsed.options[1].name).toBe('Size');
+      expect(parsed.options[1].values).toEqual(['Standard', 'Pro', 'Elite', 'Mini']);
+      expect(parsed.options.some((o) => o.name.startsWith('Option'))).toBe(false);
+
+      // 4 colors * 4 sizes = 16 variants
+      expect(parsed.variants.length).toBe(16);
+      expect(parsed.variants[0].option_values).toEqual({ Color: 'Black', Size: 'Standard' });
+    });
+
+    it('merges multiple property rows sharing the same option name (e.g. Color)', () => {
+      document.body.innerHTML = `
+        <div data-pl="product-title"><h1>Cotton T-Shirt</h1></div>
+        <div class="price--current--H7sGzqb"><span>US $10.00</span></div>
+        <div class="image-view--previewBox--Gk_f0Y1"><img src="https://ae01.alicdn.com/kf/Stshirt.jpg"></div>
+        <div class="sku-wrap">
+          <div class="sku-property">
+            <div class="sku-title">Color: Solid</div>
+            <div class="sku-property-item"><img alt="Black" src="..."></div>
+            <div class="sku-property-item"><img alt="White" src="..."></div>
+          </div>
+          <div class="sku-property">
+            <div class="sku-title">Color: Striped</div>
+            <div class="sku-property-item"><img alt="Navy Stripe" src="..."></div>
+            <div class="sku-property-item"><img alt="Red Stripe" src="..."></div>
+          </div>
+        </div>
+      `;
+
+      const parsed = extractFromDom(document);
+
+      // Should merge the two Color rows into a single Color option
+      expect(parsed.options.length).toBe(1);
+      expect(parsed.options[0].name).toBe('Color');
+      expect(parsed.options[0].values).toEqual(['Black', 'White', 'Navy Stripe', 'Red Stripe']);
+    });
   });
 
   describe('Multi-Strategy Orchestrator & Integrity Rules', () => {

@@ -235,7 +235,14 @@ export function parseAliExpressDataPayload(payload: Record<string, unknown>): Sc
       }
 
       if (optValues.length > 0) {
-        options.push({ name: optName, values: optValues });
+        const existing = options.find((o) => o.name.toLowerCase() === optName.toLowerCase());
+        if (existing) {
+          for (const v of optValues) {
+            if (!existing.values.includes(v)) existing.values.push(v);
+          }
+        } else {
+          options.push({ name: optName, values: optValues });
+        }
       }
     }
 
