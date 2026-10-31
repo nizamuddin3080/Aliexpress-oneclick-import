@@ -1,8 +1,9 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
 
-// Load .env file if present
+// Load .env file from current working directory or server subdirectory
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), 'server/.env') });
 
 export interface ServerConfig {
   readonly PORT: number;
