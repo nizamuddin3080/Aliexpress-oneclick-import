@@ -105,6 +105,55 @@ describe('AliExpress Parsers & Orchestrator (M3-02..M3-06, M3-11)', () => {
       expect(parsed?.variants[1].option_values).toEqual({ Color: 'Silver' });
       expect(parsed?.variants[1].price).toBe('14.50');
     });
+
+    it('resolves option values when skuPropIds contains #DisplayName (e.g. 14:10#Black)', () => {
+      const mockPayload = {
+        data: {
+          titleModule: { subject: 'Heated Vest' },
+          priceModule: { minAmount: { value: 25.0, currency: 'USD' } },
+          skuModule: {
+            productSKUPropertyList: [
+              {
+                skuPropertyName: 'Color',
+                skuPropertyId: 14,
+                skuPropertyValues: [
+                  { propertyValueDisplayName: 'Black', propertyValueId: 10 },
+                  { propertyValueDisplayName: 'Navy', propertyValueId: 20 },
+                ],
+              },
+              {
+                skuPropertyName: 'Size',
+                skuPropertyId: 5,
+                skuPropertyValues: [
+                  { propertyValueDisplayName: 'L', propertyValueId: 100 },
+                  { propertyValueDisplayName: 'XL', propertyValueId: 200 },
+                ],
+              },
+            ],
+            skuPriceList: [
+              {
+                skuPropIds: '14:10#Black;5:100#L',
+                skuId: 'V-BLK-L',
+                skuVal: { actSkuCalPrice: '25.00' },
+              },
+              {
+                skuPropIds: '14:20#Navy;5:200#XL',
+                skuId: 'V-NAV-XL',
+                skuVal: { actSkuCalPrice: '27.00' },
+              },
+            ],
+          },
+        },
+      };
+
+      const parsed = parseAliExpressDataPayload(mockPayload);
+      expect(parsed?.options.length).toBe(2);
+      expect(parsed?.options[0].name).toBe('Color');
+      expect(parsed?.options[1].name).toBe('Size');
+      expect(parsed?.variants.length).toBe(2);
+      expect(parsed?.variants[0].option_values).toEqual({ Color: 'Black', Size: 'L' });
+      expect(parsed?.variants[1].option_values).toEqual({ Color: 'Navy', Size: 'XL' });
+    });
   });
 
   describe('Rendered DOM Parser', () => {
@@ -134,6 +183,47 @@ describe('AliExpress Parsers & Orchestrator (M3-02..M3-06, M3-11)', () => {
       expect(parsed.description).toContain('Full mechanical switches');
       expect(parsed.variants.length).toBe(1);
       expect(parsed.variants[0].price).toBe('45.00');
+    });
+
+    it('extracts Color and Size options and variants from rendered DOM SKU swatches', () => {
+      document.body.innerHTML = `
+        <div data-pl="product-title">
+          <h1>USB Heated Jacket</h1>
+        </div>
+        <div class="price--current--H7sGzqb">
+          <span>US $30.00</span>
+        </div>
+        <div class="image-view--previewBox--Gk_f0Y1">
+          <img src="https://ae01.alicdn.com/kf/Sjacket.jpg">
+        </div>
+        <div class="sku-wrap">
+          <div class="sku-property">
+            <div class="sku-title">Color: Black</div>
+            <div class="sku-property-item"><img alt="Black" src="https://ae01.alicdn.com/kf/Sblk.jpg"></div>
+            <div class="sku-property-item"><img alt="Blue" src="https://ae01.alicdn.com/kf/Sblu.jpg"></div>
+          </div>
+          <div class="sku-property">
+            <div class="sku-title">Size: L</div>
+            <div class="sku-property-item"><span>M</span></div>
+            <div class="sku-property-item"><span>L</span></div>
+            <div class="sku-property-item"><span>XL</span></div>
+          </div>
+        </div>
+      `;
+
+      const parsed = extractFromDom(document);
+
+      expect(parsed.options.length).toBe(2);
+      expect(parsed.options[0].name).toBe('Color');
+      expect(parsed.options[0].values).toEqual(['Black', 'Blue']);
+      expect(parsed.options[1].name).toBe('Size');
+      expect(parsed.options[1].values).toEqual(['M', 'L', 'XL']);
+
+      // 2 colors * 3 sizes = 6 generated variants
+      expect(parsed.variants.length).toBe(6);
+      expect(parsed.variants[0].option_values).toEqual({ Color: 'Black', Size: 'M' });
+      expect(parsed.variants[5].option_values).toEqual({ Color: 'Blue', Size: 'XL' });
+      expect(parsed.variants[0].price).toBe('30.00');
     });
   });
 

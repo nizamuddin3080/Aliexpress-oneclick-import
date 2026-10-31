@@ -266,9 +266,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     setPopupState('extracting');
 
     try {
+      // 1. Query the MAIN world of the active tab for window.runParams / _runParams_ / etc.
+      let mainWorldPayload: Record<string, unknown> | null = null;
+      if (
+        typeof chrome !== 'undefined' &&
+        chrome.scripting &&
+        chrome.scripting.executeScript &&
+        activeTab.id
+      ) {
+        try {
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: activeTab.id },
+            world: 'MAIN',
+            func: () => {
+              const win = window as unknown as Record<string, unknown>;
+              const p =
+                win.runParams ||
+                win._runParams_ ||
+                (win._dida_config_ as Record<string, unknown> | undefined)?._init_data_ ||
+                win.__INITIAL_DATA__ ||
+                win.__INITIAL_STATE__ ||
+                win._init_data_ ||
+                win.pageData ||
+                win.__PAGE_DATA__;
+              try {
+                return p ? JSON.parse(JSON.stringify(p)) : null;
+              } catch {
+                return null;
+              }
+            },
+          });
+          if (results && results[0] && results[0].result) {
+            mainWorldPayload = results[0].result as Record<string, unknown>;
+          }
+        } catch (scriptErr) {
+          console.warn('[Popup] Main world script execution fallback:', scriptErr);
+        }
+      }
+
       chrome.tabs.sendMessage(
         activeTab.id,
-        { action: 'EXTRACT_PRODUCT' },
+        { action: 'EXTRACT_PRODUCT', mainWorldPayload },
         (response: ExtractionMessageResponse) => {
           if (chrome.runtime.lastError) {
             setPopupState('extraction-error');

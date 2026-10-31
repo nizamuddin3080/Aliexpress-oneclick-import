@@ -43,6 +43,10 @@ export function requestMainWorldData(timeoutMs = 500): Promise<Record<string, un
           var payload = null;
           if (typeof window.runParams !== 'undefined') {
             payload = window.runParams;
+          } else if (typeof window._runParams_ !== 'undefined') {
+            payload = window._runParams_;
+          } else if (typeof window._dida_config_ !== 'undefined' && window._dida_config_._init_data_) {
+            payload = window._dida_config_._init_data_;
           } else if (typeof window._init_data_ !== 'undefined') {
             payload = window._init_data_;
           } else if (typeof window.__INITIAL_DATA__ !== 'undefined') {

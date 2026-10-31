@@ -44,8 +44,8 @@ export function extractFromScriptTags(doc: Document = document): ScriptParsedRes
  * Extracts a JSON object from script text using regex patterns.
  */
 export function extractJsonFromScriptText(text: string): Record<string, unknown> | null {
-  // Pattern 1: window.runParams = { ... };
-  const runParamsMatch = text.match(/(?:window\.)?runParams\s*=\s*(\{[\s\S]*?\});(?:\s*window|\s*var|\s*let|\s*const|\s*$)/);
+  // Pattern 1: window.runParams = { ... } or window._runParams_ = { ... }
+  const runParamsMatch = text.match(/(?:window\.)?(?:runParams|_runParams_|__INITIAL_DATA__|__INITIAL_STATE__)\s*=\s*(\{[\s\S]*?\});(?:\s*window|\s*var|\s*let|\s*const|\s*$)/);
   if (runParamsMatch && runParamsMatch[1]) {
     try {
       return JSON.parse(runParamsMatch[1]) as Record<string, unknown>;
@@ -54,8 +54,19 @@ export function extractJsonFromScriptText(text: string): Record<string, unknown>
     }
   }
 
-  // Pattern 2: data: { titleModule: ... }
-  const dataMatch = text.match(/data\s*:\s*(\{[\s\S]*?"titleModule"[\s\S]*?\})\s*,\s*(?:csrfToken|serverTime|version)/);
+  // Pattern 2: window.runParams.data = { ... };
+  const runParamsDataMatch = text.match(/(?:window\.)?runParams\.data\s*=\s*(\{[\s\S]*?\});/);
+  if (runParamsDataMatch && runParamsDataMatch[1]) {
+    try {
+      const parsedData = JSON.parse(runParamsDataMatch[1]) as Record<string, unknown>;
+      return { data: parsedData };
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Pattern 3: data: { titleModule: ... } or data: { skuModule: ... }
+  const dataMatch = text.match(/data\s*:\s*(\{[\s\S]*?(?:"titleModule"|"skuModule")[\s\S]*?\})\s*,\s*(?:csrfToken|serverTime|version)/);
   if (dataMatch && dataMatch[1]) {
     try {
       return JSON.parse(dataMatch[1]) as Record<string, unknown>;
@@ -158,39 +169,66 @@ export function parseAliExpressDataPayload(payload: Record<string, unknown>): Sc
     }
   }
 
-  // 4. Options and Variants from skuModule
+  // 4. Options and Variants from skuModule or alternate SKU containers
   const options: ProductOption[] = [];
   const variants: ProductVariant[] = [];
 
   const propMap = new Map<string, { optionName: string; valueName: string }>();
+  const propIdToName = new Map<string, string>();
 
-  if (skuModule) {
-    const propList = Array.isArray(skuModule.productSKUPropertyList)
-      ? skuModule.productSKUPropertyList
-      : [];
+  const activeSkuModule = (skuModule ||
+    (root.productSKUInfo as Record<string, unknown> | undefined) ||
+    (root.skuInfo as Record<string, unknown> | undefined) ||
+    (root.skuComponent as Record<string, unknown> | undefined) ||
+    (root.productInfo as Record<string, unknown> | undefined)) as Record<string, unknown> | undefined;
+
+  if (activeSkuModule) {
+    const rawPropList = activeSkuModule.productSKUPropertyList ||
+      activeSkuModule.skuProperties ||
+      activeSkuModule.propertyList;
+
+    const propList = Array.isArray(rawPropList) ? rawPropList : [];
 
     for (const prop of propList) {
-      const optName = typeof prop.skuPropertyName === 'string' ? prop.skuPropertyName.trim() : '';
+      const optName = typeof prop.skuPropertyName === 'string'
+        ? prop.skuPropertyName.trim()
+        : typeof prop.propertyName === 'string'
+          ? prop.propertyName.trim()
+          : typeof prop.name === 'string'
+            ? prop.name.trim()
+            : '';
       if (!optName) continue;
 
+      const propIdKey = String(prop.skuPropertyId || prop.propertyId || prop.id || '');
+      if (propIdKey) {
+        propIdToName.set(propIdKey, optName);
+      }
+
       const optValues: string[] = [];
-      const valList = Array.isArray(prop.skuPropertyValues) ? prop.skuPropertyValues : [];
+      const rawValList = prop.skuPropertyValues || prop.propertyValues || prop.values;
+      const valList = Array.isArray(rawValList) ? rawValList : [];
 
       for (const val of valList) {
         const valName = typeof val.propertyValueDisplayName === 'string'
           ? val.propertyValueDisplayName.trim()
           : typeof val.propertyValueName === 'string'
             ? val.propertyValueName.trim()
-            : '';
+            : typeof val.name === 'string'
+              ? val.name.trim()
+              : typeof val.displayName === 'string'
+                ? val.displayName.trim()
+                : '';
 
-        const propId = String(val.propertyValueId || val.propertyValueIdLong || '');
+        const propId = String(val.propertyValueId || val.propertyValueIdLong || val.id || '');
 
         if (valName) {
           optValues.push(valName);
           if (propId) {
             // Map propId to { optionName, valueName } for variant resolution
             propMap.set(propId, { optionName: optName, valueName: valName });
-            propMap.set(`${prop.skuPropertyId}:${propId}`, { optionName: optName, valueName: valName });
+            if (propIdKey) {
+              propMap.set(`${propIdKey}:${propId}`, { optionName: optName, valueName: valName });
+            }
           }
         }
       }
@@ -200,45 +238,105 @@ export function parseAliExpressDataPayload(payload: Record<string, unknown>): Sc
       }
     }
 
-    // Process variants from skuPriceList
-    const priceList = Array.isArray(skuModule.skuPriceList) ? skuModule.skuPriceList : [];
+    // Process variants from skuPriceList or alternate price lists
+    const rawPriceList = activeSkuModule.skuPriceList || activeSkuModule.skuList || activeSkuModule.priceList;
+    const priceList = Array.isArray(rawPriceList) ? rawPriceList : [];
 
     for (const skuItem of priceList) {
       const skuVal = skuItem.skuVal as Record<string, unknown> | undefined;
-      const skuPropIds = typeof skuItem.skuPropIds === 'string' ? skuItem.skuPropIds : '';
-      const skuId = String(skuItem.skuId || skuItem.skuIdStr || '');
+      const rawPropString = typeof skuItem.skuPropIds === 'string'
+        ? skuItem.skuPropIds
+        : typeof skuItem.skuAttr === 'string'
+          ? skuItem.skuAttr
+          : typeof skuItem.props === 'string'
+            ? skuItem.props
+            : '';
+      const skuId = String(skuItem.skuId || skuItem.skuIdStr || skuItem.id || '');
 
       // Resolve variant price
       let vPrice = basePrice;
       if (skuVal) {
-        const rawVal = skuVal.actSkuCalPrice || skuVal.skuCalPrice || (skuVal.skuAmount as Record<string, unknown>)?.value;
+        const rawVal = skuVal.actSkuCalPrice ||
+          skuVal.skuCalPrice ||
+          skuVal.actSkuPrice ||
+          skuVal.skuPrice ||
+          (skuVal.skuAmount as Record<string, unknown>)?.value;
         if (rawVal) {
           const num = parseFloat(String(rawVal));
           if (!isNaN(num) && num > 0) {
             vPrice = num.toFixed(2);
           }
         }
+      } else if (skuItem.price || skuItem.skuPrice) {
+        const num = parseFloat(String(skuItem.price || skuItem.skuPrice));
+        if (!isNaN(num) && num > 0) {
+          vPrice = num.toFixed(2);
+        }
       }
 
-      // Resolve option combinations from skuPropIds (e.g. "14:10#Red;5:100#XL" or "10,100")
+      // Resolve option combinations
       const optionValues: Record<string, string> = {};
 
-      if (skuPropIds) {
-        const segments = skuPropIds.split(/[;,]/);
+      // Strategy 1: Parse from skuPropertyValues array directly on skuItem if present
+      if (Array.isArray(skuItem.skuPropertyValues)) {
+        for (const pv of skuItem.skuPropertyValues) {
+          const pName = pv.skuPropertyName || pv.propertyName;
+          const vName = pv.propertyValueDisplayName || pv.propertyValueName || pv.name;
+          if (pName && vName) {
+            optionValues[String(pName).trim()] = String(vName).trim();
+          }
+        }
+      }
+
+      // Strategy 2: Parse from skuPropIds or skuAttr (e.g. "14:10#Black;5:100#XL" or "10,100")
+      if (Object.keys(optionValues).length === 0 && rawPropString) {
+        const segments = rawPropString.split(/[;,]/);
         for (const seg of segments) {
           const cleanSeg = seg.trim();
+          if (!cleanSeg) continue;
+
+          // 1. Direct match in propMap
           if (propMap.has(cleanSeg)) {
             const resolved = propMap.get(cleanSeg)!;
             optionValues[resolved.optionName] = resolved.valueName;
-          } else {
-            // Check property value id alone (after colon if present)
-            const parts = cleanSeg.split(':');
-            const valId = parts[1] || parts[0];
-            if (propMap.has(valId)) {
-              const resolved = propMap.get(valId)!;
-              optionValues[resolved.optionName] = resolved.valueName;
+            continue;
+          }
+
+          // 2. Match without #name (e.g. "14:10#Black" -> "14:10")
+          const withoutHash = cleanSeg.split('#')[0].trim();
+          if (propMap.has(withoutHash)) {
+            const resolved = propMap.get(withoutHash)!;
+            optionValues[resolved.optionName] = resolved.valueName;
+            continue;
+          }
+
+          // 3. Match property value ID alone (after colon if present)
+          const parts = withoutHash.split(':');
+          const valId = parts[1] || parts[0];
+          if (propMap.has(valId)) {
+            const resolved = propMap.get(valId)!;
+            optionValues[resolved.optionName] = resolved.valueName;
+            continue;
+          }
+
+          // 4. Extract display name directly from "#DisplayName" if option is mapped
+          if (cleanSeg.includes('#')) {
+            const hashParts = cleanSeg.split('#');
+            const propPart = hashParts[0].split(':')[0].trim();
+            const displayName = hashParts[1]?.trim();
+            const optName = propIdToName.get(propPart);
+            if (optName && displayName) {
+              optionValues[optName] = displayName;
             }
           }
+        }
+      }
+
+      // Ensure that if options are defined, this variant has optionValues
+      if (options.length > 0 && Object.keys(optionValues).length === 0) {
+        // Fallback: assign first declared value of each option
+        for (const opt of options) {
+          optionValues[opt.name] = opt.values[0] || 'Default';
         }
       }
 

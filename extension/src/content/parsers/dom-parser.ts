@@ -1,6 +1,6 @@
 import { normalizeCurrency, parsePriceAndCurrencyText } from '../currency.js';
 import { normalizeAndValidateImageUrl } from '../url-parser.js';
-import type { ProductImage, ProductVariant } from '../../shared/types.js';
+import type { ProductImage, ProductOption, ProductVariant } from '../../shared/types.js';
 
 export interface DomParsedResult {
   title: string | null;
@@ -8,7 +8,48 @@ export interface DomParsedResult {
   currency: string | null;
   price: string | null;
   images: ProductImage[];
+  options: ProductOption[];
   variants: ProductVariant[];
+}
+
+/**
+ * Generates Cartesian product combinations for product options with a fallback selling price.
+ */
+export function generateVariantCombinations(
+  options: ProductOption[],
+  price: string
+): ProductVariant[] {
+  if (options.length === 0) {
+    return [{ option_values: {}, price }];
+  }
+
+  let combinations: Array<Record<string, string>> = [{}];
+
+  for (const opt of options) {
+    const nextCombinations: Array<Record<string, string>> = [];
+    const values = opt.values.length > 0 ? opt.values : ['Default'];
+
+    for (const combo of combinations) {
+      for (const val of values) {
+        nextCombinations.push({
+          ...combo,
+          [opt.name]: val,
+        });
+      }
+    }
+    combinations = nextCombinations;
+    // Cap combinations to Shopify maximum variant threshold
+    if (combinations.length > 250) {
+      combinations = combinations.slice(0, 250);
+      break;
+    }
+  }
+
+  return combinations.map((option_values, idx) => ({
+    option_values,
+    price,
+    sku: `VAR-${idx + 1}`,
+  }));
 }
 
 /**
@@ -27,9 +68,13 @@ export function extractFromDom(doc: Document = document): DomParsedResult {
   // 4. Description Extraction
   const description = extractDescription(doc);
 
-  // 5. Default Variant
-  const variants: ProductVariant[] = [];
-  if (price) {
+  // 5. Options and Variants from Rendered DOM
+  const options = extractOptionsFromDom(doc);
+  let variants: ProductVariant[] = [];
+
+  if (options.length > 0 && price) {
+    variants = generateVariantCombinations(options, price);
+  } else if (price) {
     variants.push({
       option_values: {},
       price,
@@ -42,6 +87,7 @@ export function extractFromDom(doc: Document = document): DomParsedResult {
     currency,
     price,
     images,
+    options,
     variants,
   };
 }
@@ -246,4 +292,156 @@ function extractDescription(doc: Document): string | null {
   }
 
   return null;
+}
+
+/**
+ * Scans the rendered AliExpress DOM for SKU property groups (Color, Size, etc.) and their swatches/buttons.
+ */
+export function extractOptionsFromDom(doc: Document = document): ProductOption[] {
+  const options: ProductOption[] = [];
+
+  // Group selectors for SKU properties on AliExpress
+  const propertyGroupSelectors = [
+    'div[class*="sku-property"]',
+    'div[class*="sku--property"]',
+    'div[class*="skuProperty"]',
+    'div[class*="sku-wrap"] > div',
+    'div[data-pl="product-sku"] > div',
+    'div[class*="Sku_Sku"]',
+    'div[class*="sku-item"]',
+    'div[class*="skuItem"]',
+    'div[class*="sku-prop"]',
+  ];
+
+  let propertyGroups: Element[] = [];
+  for (const sel of propertyGroupSelectors) {
+    const found = Array.from(doc.querySelectorAll(sel));
+    // Filter groups that have clickable item children or swatches
+    const valid = found.filter((g) =>
+      Boolean(
+        g.querySelector(
+          'img, button, [class*="item"], [data-sku-id], [data-property-id], [class*="sku"]'
+        )
+      )
+    );
+    if (valid.length > 0) {
+      propertyGroups = valid;
+      break;
+    }
+  }
+
+  for (let gIdx = 0; gIdx < propertyGroups.length; gIdx++) {
+    const group = propertyGroups[gIdx];
+
+    // Find option title (e.g. "Color: Black", "Size: XL", "Color")
+    let optName: string | null = null;
+    const titleSelectors = [
+      'div[class*="sku-title"]',
+      'span[class*="sku-title"]',
+      'div[class*="title--"]',
+      'span[class*="title--"]',
+      'div[class*="property-title"]',
+      'span[class*="property-title"]',
+      'div[class*="label"]',
+      'h2',
+      'h3',
+    ];
+
+    for (const tSel of titleSelectors) {
+      const tEl = group.querySelector(tSel);
+      if (tEl && tEl.textContent) {
+        const raw = tEl.textContent.trim();
+        const clean = raw.split(':')[0].trim();
+        if (clean.length > 0 && clean.length < 30) {
+          optName = clean;
+          break;
+        }
+      }
+    }
+
+    // Fallback option name if title element not found
+    if (!optName) {
+      if (group.querySelector('img')) {
+        optName = 'Color';
+      } else {
+        optName = gIdx === 0 ? 'Color' : gIdx === 1 ? 'Size' : `Option ${gIdx + 1}`;
+      }
+    }
+
+    // Find option values within group
+    const optValues: string[] = [];
+    const seenValues = new Set<string>();
+
+    const itemSelectors = [
+      'div[class*="sku-property-item"]',
+      'div[class*="sku-item--item"]',
+      'div[class*="item--item"]',
+      'li[class*="sku-property-item"]',
+      'div[class*="skuItem"]',
+      'button[class*="sku"]',
+      'div[data-sku-id]',
+      'div[data-property-id]',
+      'img[class*="sku"]',
+    ];
+
+    let items: Element[] = [];
+    for (const iSel of itemSelectors) {
+      const foundItems = Array.from(group.querySelectorAll(iSel));
+      if (foundItems.length > 0) {
+        items = foundItems;
+        break;
+      }
+    }
+
+    // Fallback: direct children if no specific item selector matched
+    if (items.length === 0) {
+      items = Array.from(group.children).filter((c) =>
+        Boolean(c.querySelector('img') || c.textContent?.trim())
+      );
+    }
+
+    for (const item of items) {
+      let valName: string | null = null;
+
+      // 1. Check img alt or title (swatch)
+      const img = item.tagName === 'IMG' ? (item as HTMLImageElement) : item.querySelector('img');
+      if (img) {
+        valName = img.getAttribute('alt') || img.getAttribute('title');
+      }
+
+      // 2. Check title attribute or aria-label
+      if (!valName) {
+        valName =
+          item.getAttribute('title') ||
+          item.getAttribute('aria-label') ||
+          item.getAttribute('data-value');
+      }
+
+      // 3. Check visible text content
+      if (!valName && item.textContent) {
+        const text = item.textContent.trim();
+        // Ignore long text that looks like a description or price block
+        if (text.length > 0 && text.length <= 40 && !text.includes('$')) {
+          valName = text;
+        }
+      }
+
+      if (valName) {
+        const cleanVal = valName.replace(/\s+/g, ' ').trim();
+        if (cleanVal && !seenValues.has(cleanVal.toLowerCase())) {
+          seenValues.add(cleanVal.toLowerCase());
+          optValues.push(cleanVal);
+        }
+      }
+    }
+
+    if (optValues.length > 0) {
+      options.push({
+        name: optName,
+        values: optValues,
+      });
+    }
+  }
+
+  return options;
 }

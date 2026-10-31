@@ -2,7 +2,7 @@ import { parseAndValidateAliExpressUrl, normalizeAndValidateImageUrl } from './u
 import { requestMainWorldData } from './bridge.js';
 import { extractFromScriptTags, parseAliExpressDataPayload } from './parsers/script-parser.js';
 import { extractFromJsonLd } from './parsers/jsonld-parser.js';
-import { extractFromDom } from './parsers/dom-parser.js';
+import { extractFromDom, generateVariantCombinations } from './parsers/dom-parser.js';
 import { sanitizeProductDescription } from './sanitizer.js';
 import type { ExtractedProduct, ProductImage, ProductOption, ProductVariant } from '../shared/types.js';
 
@@ -19,12 +19,13 @@ export interface ExtractionResult {
  * Multi-Strategy Product Extractor for AliExpress product pages.
  * Strategy Chain:
  *  1. Bridge / Script JSON Data (richest variant matrix & pricing)
- *  2. JSON-LD Structured Metadata (standards-compliant product schema)
- *  3. Rendered DOM Extraction (visible elements & open-graph meta)
+ *  2. Rendered DOM Extraction (visible elements, options & open-graph meta)
+ *  3. JSON-LD Structured Metadata (standards-compliant product schema)
  */
 export async function extractProductData(
   doc: Document = document,
-  currentUrl: string = window.location.href
+  currentUrl: string = window.location.href,
+  providedMainWorldPayload?: Record<string, unknown> | null
 ): Promise<ExtractionResult> {
   // 1. URL & Product ID validation
   const urlCheck = parseAndValidateAliExpressUrl(currentUrl);
@@ -42,9 +43,9 @@ export async function extractProductData(
   const source_url = urlCheck.canonicalUrl;
 
   // 2. Execute extraction strategies in priority order
-  // Strategy A: Main-world bridge data
+  // Strategy A: Main-world bridge data (provided directly from popup scripting or transient event)
   let scriptData = null;
-  const bridgePayload = await requestMainWorldData();
+  const bridgePayload = providedMainWorldPayload || (await requestMainWorldData());
   if (bridgePayload) {
     scriptData = parseAliExpressDataPayload(bridgePayload);
   }
@@ -57,14 +58,14 @@ export async function extractProductData(
     }
   }
 
-  // Strategy C: JSON-LD structured data
-  const jsonLdData = extractFromJsonLd(doc);
-
-  // Strategy D: Rendered DOM elements
+  // Strategy C: Rendered DOM elements (including SKU options & images)
   const domData = extractFromDom(doc);
 
-  // 3. Merge best available fields with priority: Script -> JSON-LD -> DOM
-  let title = scriptData?.title || jsonLdData?.title || domData?.title || null;
+  // Strategy D: JSON-LD structured data
+  const jsonLdData = extractFromJsonLd(doc);
+
+  // 3. Merge best available fields with priority: Script -> DOM -> JSON-LD
+  let title = scriptData?.title || domData?.title || jsonLdData?.title || null;
   if (title) {
     title = title.replace(/\s+/g, ' ').trim();
     if (title.length > 255) {
@@ -82,8 +83,8 @@ export async function extractProductData(
     };
   }
 
-  // Currency extraction priority: Script -> JSON-LD -> DOM
-  const source_currency = scriptData?.currency || jsonLdData?.currency || domData?.currency || null;
+  // Currency extraction priority: Script -> DOM -> JSON-LD
+  const source_currency = scriptData?.currency || domData?.currency || jsonLdData?.currency || null;
   if (!source_currency) {
     return {
       success: false,
@@ -104,8 +105,8 @@ export async function extractProductData(
 
   const imageCandidates = [
     ...(scriptData?.images || []),
-    ...(jsonLdData?.images || []),
     ...(domData?.images || []),
+    ...(jsonLdData?.images || []),
   ];
 
   for (const img of imageCandidates) {
@@ -141,8 +142,24 @@ export async function extractProductData(
   }
 
   // Options & Variants resolution
-  let options: ProductOption[] = scriptData?.options || [];
-  let variants: ProductVariant[] = scriptData?.variants || jsonLdData?.variants || domData?.variants || [];
+  // Priority: ScriptData options -> DomData options
+  let options: ProductOption[] = (scriptData?.options && scriptData.options.length > 0)
+    ? scriptData.options
+    : (domData?.options || []);
+
+  // Priority: ScriptData variants (if non-empty and matched) -> DomData variants -> JsonLd variants
+  let variants: ProductVariant[] = [];
+  if (
+    scriptData?.variants &&
+    scriptData.variants.length > 0 &&
+    (options.length === 0 || Object.keys(scriptData.variants[0].option_values).length > 0)
+  ) {
+    variants = scriptData.variants;
+  } else if (domData?.variants && domData.variants.length > 0) {
+    variants = domData.variants;
+  } else if (jsonLdData?.variants && jsonLdData.variants.length > 0) {
+    variants = jsonLdData.variants;
+  }
 
   // Strict 3-option limit check (ADR-014, F-04): Never silently drop option dimensions
   if (options.length > 3) {
@@ -155,9 +172,20 @@ export async function extractProductData(
     };
   }
 
+  // If options exist but variants array is empty or lacks option values, generate full combinations
+  const fallbackPrice = scriptData?.price || domData?.price || jsonLdData?.price;
+  if (
+    options.length > 0 &&
+    (variants.length === 0 ||
+      (variants.length === 1 && Object.keys(variants[0].option_values).length === 0))
+  ) {
+    if (fallbackPrice) {
+      variants = generateVariantCombinations(options, fallbackPrice);
+    }
+  }
+
   // Ensure default variant exists if product has no options
   if (variants.length === 0) {
-    const fallbackPrice = scriptData?.price || jsonLdData?.price || domData?.price;
     if (fallbackPrice) {
       variants = [
         {

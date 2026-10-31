@@ -5,7 +5,7 @@ console.log('[AliExpress-Shopify-Importer] Content script active on:', window.lo
 // Listen for extraction requests from popup or background service worker
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'EXTRACT_PRODUCT') {
-    extractProductData(document, window.location.href)
+    extractProductData(document, window.location.href, message.mainWorldPayload)
       .then((result) => {
         sendResponse(result);
       })
