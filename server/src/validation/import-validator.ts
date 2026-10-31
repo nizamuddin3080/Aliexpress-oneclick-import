@@ -24,6 +24,7 @@ export interface ImportRequestBody {
   options?: ImportOptionInput[];
   variants: ImportVariantInput[];
   markup_percentage: number;
+  shipping_cost?: string | number;
 }
 
 export interface ValidationErrorField {
@@ -225,6 +226,16 @@ export function validateImportPayload(
         errorMessage: `Source currency (${curr}) does not match Shopify store currency (${storeCurrency.toUpperCase()}).`,
         fields: [{ field: 'source_currency', message: `Currency mismatch: AliExpress is ${curr}, store is ${storeCurrency.toUpperCase()}.` }],
       };
+    }
+  }
+
+  // 10. shipping_cost (optional, non-negative number if supplied)
+  if (data.shipping_cost !== undefined && data.shipping_cost !== null) {
+    const sNum = typeof data.shipping_cost === 'number'
+      ? data.shipping_cost
+      : parseFloat(String(data.shipping_cost));
+    if (isNaN(sNum) || sNum < 0) {
+      fields.push({ field: 'shipping_cost', message: 'shipping_cost must be a non-negative number.' });
     }
   }
 

@@ -221,6 +221,8 @@ export async function extractProductData(
     }
   }
 
+  const shipping_cost = scriptData?.shipping_cost || domData?.shipping_cost || '0.00';
+
   const product: ExtractedProduct = {
     source_product_id,
     source_url,
@@ -230,6 +232,7 @@ export async function extractProductData(
     images,
     options,
     variants,
+    shipping_cost,
   };
 
   return {

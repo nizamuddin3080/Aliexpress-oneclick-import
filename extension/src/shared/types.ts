@@ -28,6 +28,7 @@ export interface ExtractedProduct {
   options: ProductOption[];
   variants: ProductVariant[];
   markup_percentage?: number;
+  shipping_cost?: string;
 }
 
 export type ImportOutcome =

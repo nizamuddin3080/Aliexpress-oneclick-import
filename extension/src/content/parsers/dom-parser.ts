@@ -7,6 +7,7 @@ export interface DomParsedResult {
   description: string | null;
   currency: string | null;
   price: string | null;
+  shipping_cost: string | null;
   images: ProductImage[];
   options: ProductOption[];
   variants: ProductVariant[];
@@ -68,7 +69,10 @@ export function extractFromDom(doc: Document = document): DomParsedResult {
   // 4. Description Extraction
   const description = extractDescription(doc);
 
-  // 5. Options and Variants from Rendered DOM
+  // 5. Shipping Cost Extraction
+  const shipping_cost = extractShippingCostFromDom(doc);
+
+  // 6. Options and Variants from Rendered DOM
   const options = extractOptionsFromDom(doc);
   let variants: ProductVariant[] = [];
 
@@ -86,6 +90,7 @@ export function extractFromDom(doc: Document = document): DomParsedResult {
     description,
     currency,
     price,
+    shipping_cost,
     images,
     options,
     variants,
@@ -444,4 +449,37 @@ export function extractOptionsFromDom(doc: Document = document): ProductOption[]
   }
 
   return options;
+}
+
+/**
+ * Scans the DOM for visible shipping / delivery cost text.
+ */
+export function extractShippingCostFromDom(doc: Document = document): string | null {
+  const shippingSelectors = [
+    'div[data-pl="product-shipping"]',
+    'div[class*="shipping--"]',
+    'div[class*="delivery--"]',
+    'div[class*="logistics--"]',
+    'div[class*="dynamic-shipping"]',
+    'span[class*="shipping--"]',
+    'span[class*="delivery--"]',
+    '.product-shipping-price',
+  ];
+
+  for (const sel of shippingSelectors) {
+    const el = doc.querySelector(sel);
+    if (el && el.textContent) {
+      const text = el.textContent.trim();
+      if (/free\s*(?:shipping|delivery)/i.test(text)) {
+        return '0.00';
+      }
+
+      const parsed = parsePriceAndCurrencyText(text);
+      if (parsed.price) {
+        return parsed.price;
+      }
+    }
+  }
+
+  return null;
 }

@@ -57,6 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const previewVariantsBadge = document.getElementById('preview-variants-badge');
   const previewImagesBadge = document.getElementById('preview-images-badge');
   const previewSourcePrice = document.getElementById('preview-source-price');
+  const previewShippingInput = document.getElementById('preview-shipping-input') as HTMLInputElement | null;
+  const previewShippingCurrency = document.getElementById('preview-shipping-currency');
+  const previewTotalCost = document.getElementById('preview-total-cost');
   const previewMarkupInput = document.getElementById('preview-markup-input') as HTMLInputElement | null;
   const previewSellingPrice = document.getElementById('preview-selling-price');
   const importBtn = document.getElementById('btn-import') as HTMLButtonElement | null;
@@ -157,7 +160,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!currentProduct || !previewSellingPrice || !previewMarkupInput) return;
 
     const markup = parseFloat(previewMarkupInput.value) || 0;
-    const range = calculatePriceRange(currentProduct.variants, markup);
+    const shipping = previewShippingInput ? parseFloat(previewShippingInput.value) || 0 : 0;
+    const range = calculatePriceRange(currentProduct.variants, markup, shipping);
+
+    if (previewTotalCost) {
+      previewTotalCost.textContent = range.isCostRange
+        ? `$${range.minTotalCost} – $${range.maxTotalCost} ${currentProduct.source_currency}`
+        : `$${range.minTotalCost} ${currentProduct.source_currency}`;
+    }
 
     if (range.isRange) {
       previewSellingPrice.textContent = `$${range.minPrice} – $${range.maxPrice} ${currentProduct.source_currency}`;
@@ -391,13 +401,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         : `$${rawRange.minPrice} ${currentProduct.source_currency}`;
     }
 
+    if (previewShippingInput) {
+      previewShippingInput.value = currentProduct.shipping_cost || '0.00';
+    }
+    if (previewShippingCurrency) {
+      previewShippingCurrency.textContent = currentProduct.source_currency;
+    }
+
     updateCalculatedPrice();
     setPopupState('preview');
   }
 
-  // 4. Markup Input Change Listener (Real-Time Recalculation)
+  // 4. Markup & Shipping Input Change Listeners (Real-Time Recalculation)
   if (previewMarkupInput) {
     previewMarkupInput.addEventListener('input', () => {
+      updateCalculatedPrice();
+    });
+  }
+
+  if (previewShippingInput) {
+    previewShippingInput.addEventListener('input', () => {
       updateCalculatedPrice();
     });
   }
@@ -413,6 +436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       setPopupState('importing');
 
       const markup = previewMarkupInput ? parseFloat(previewMarkupInput.value) || 0 : 30;
+      const shipping = previewShippingInput ? parseFloat(previewShippingInput.value) || 0 : 0;
 
       const payload = {
         source_product_id: currentProduct.source_product_id,
@@ -424,6 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         options: currentProduct.options,
         variants: currentProduct.variants,
         markup_percentage: markup,
+        shipping_cost: shipping,
       };
 
       try {

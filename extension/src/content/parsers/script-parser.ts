@@ -7,6 +7,7 @@ export interface ScriptParsedResult {
   description: string | null;
   currency: string | null;
   price: string | null;
+  shipping_cost: string | null;
   images: ProductImage[];
   options: ProductOption[];
   variants: ProductVariant[];
@@ -355,11 +356,43 @@ export function parseAliExpressDataPayload(payload: Record<string, unknown>): Sc
     ? null
     : null;
 
+  // Shipping Cost from shippingModule or logisticsModule
+  let shipping_cost: string | null = null;
+  const shippingModule = (root.shippingModule ||
+    root.logisticsModule ||
+    root.deliveryModule ||
+    root.shippingInfo) as Record<string, unknown> | undefined;
+
+  if (shippingModule) {
+    const freightAmount = (shippingModule.freightAmount ||
+      shippingModule.generalFreightInfo) as Record<string, unknown> | undefined;
+
+    if (shippingModule.freeShipping === true) {
+      shipping_cost = '0.00';
+    } else if (freightAmount) {
+      const val = freightAmount.value ?? freightAmount.amount;
+      if (typeof val === 'number') {
+        shipping_cost = val.toFixed(2);
+      } else if (typeof val === 'string') {
+        const num = parseFloat(val);
+        if (!isNaN(num)) shipping_cost = num.toFixed(2);
+      } else if (typeof freightAmount.formattedAmount === 'string') {
+        if (/free/i.test(freightAmount.formattedAmount)) {
+          shipping_cost = '0.00';
+        } else {
+          const parsed = parsePriceAndCurrencyText(freightAmount.formattedAmount);
+          if (parsed.price) shipping_cost = parsed.price;
+        }
+      }
+    }
+  }
+
   return {
     title,
     description,
     currency,
     price: basePrice,
+    shipping_cost,
     images,
     options,
     variants,

@@ -41,6 +41,18 @@ describe('Server Pricing (Decimal-safe cent arithmetic)', () => {
     expect(calculateSellingPrice('49.95', 0)).toBe('49.95');
   });
 
+  it('adds shipping cost to base price to calculate total supplier cost before markup', () => {
+    // Base 10.00 + Shipping 3.50 = 13.50 * 1.50 = 20.25
+    expect(calculateSellingPrice('10.00', 50, '3.50')).toBe('20.25');
+
+    // Works with numeric types as well
+    expect(calculateSellingPrice(10.00, 50, 3.50)).toBe('20.25');
+
+    // Free shipping (0.00 or 0)
+    expect(calculateSellingPrice('10.00', 30, '0.00')).toBe('13.00');
+    expect(calculateSellingPrice('10.00', 30, 0)).toBe('13.00');
+  });
+
   it('rejects negative markup percentage', () => {
     expect(() => calculateSellingPrice('10.00', -10)).toThrow('Markup percentage cannot be negative');
   });

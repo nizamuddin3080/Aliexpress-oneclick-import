@@ -38,25 +38,32 @@ export function centsToFormattedPrice(cents: number): string {
 }
 
 /**
- * Calculates selling price given a base price and markup percentage.
- * Formula: sellingPrice = basePrice * (1 + markupPercentage / 100)
+ * Calculates selling price given a base price, markup percentage, and optional shipping cost.
+ * Formula:
+ *   totalSupplierCost = basePrice + shippingCost
+ *   sellingPrice = totalSupplierCost * (1 + markupPercentage / 100)
  * Uses commercial half-up rounding at the cent level.
  *
- * @param basePrice Base price as number or string (e.g. 10.00 or "10.00")
+ * @param basePrice Base item price as number or string (e.g. 10.00 or "10.00")
  * @param markupPercentage Markup percentage (e.g. 30 for 30%)
- * @returns Formatted price string with exactly two decimal places (e.g. "13.00")
+ * @param shippingCost Optional shipping cost (e.g. 3.50 or "3.50", defaults to 0)
+ * @returns Formatted price string with exactly two decimal places (e.g. "17.55")
  */
 export function calculateSellingPrice(
   basePrice: string | number,
-  markupPercentage: number
+  markupPercentage: number,
+  shippingCost: string | number = 0
 ): string {
   if (markupPercentage < 0) {
     throw new Error(`Markup percentage cannot be negative: ${markupPercentage}`);
   }
 
   const baseCents = parsePriceToCents(basePrice);
+  const shippingCents = shippingCost ? parsePriceToCents(shippingCost) : 0;
+  const totalSupplierCostCents = baseCents + shippingCents;
+
   const factor = 1 + markupPercentage / 100;
-  const sellingCents = Math.round(baseCents * factor);
+  const sellingCents = Math.round(totalSupplierCostCents * factor);
 
   return centsToFormattedPrice(sellingCents);
 }

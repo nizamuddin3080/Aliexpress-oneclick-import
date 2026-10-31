@@ -56,4 +56,34 @@ describe('Popup Decimal-Safe Pricing Calculations (M4-06, PR-01..PR-08)', () => 
     expect(range.minPrice).toBe('18.00');
     expect(range.maxPrice).toBe('18.00');
   });
+
+  it('adds shipping cost to source cost to calculate total supplier cost before markup', () => {
+    // Item cost $10.00, Shipping $3.50 -> Total supplier cost $13.50
+    // Markup 50% -> 13.50 * 1.50 = 20.25
+    expect(calculateSellingPrice('10.00', 50, '3.50')).toBe('20.25');
+
+    // Free shipping (0.00) preserves item base cost
+    expect(calculateSellingPrice('10.00', 50, '0.00')).toBe('15.00');
+    expect(calculateSellingPrice('10.00', 50, 0)).toBe('15.00');
+
+    // Commercial half-up rounding with shipping
+    // Item 12.49 + Shipping 2.50 = 14.99 * 1.33 = 19.9367 -> 19.94
+    expect(calculateSellingPrice('12.49', 33, '2.50')).toBe('19.94');
+  });
+
+  it('computes total supplier cost range with shipping in calculatePriceRange', () => {
+    const variants = [
+      { price: '10.00' },
+      { price: '20.00' },
+    ];
+
+    const range = calculatePriceRange(variants, 30, '4.00');
+    expect(range.isRange).toBe(true);
+    // Min total cost: 10 + 4 = 14.00; Max total cost: 20 + 4 = 24.00
+    expect(range.minTotalCost).toBe('14.00');
+    expect(range.maxTotalCost).toBe('24.00');
+    // Min selling price: 14 * 1.3 = 18.20; Max selling price: 24 * 1.3 = 31.20
+    expect(range.minPrice).toBe('18.20');
+    expect(range.maxPrice).toBe('31.20');
+  });
 });

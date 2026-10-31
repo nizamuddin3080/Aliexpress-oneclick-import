@@ -76,6 +76,24 @@ describe('Shopify productSet Mutation Payload Builder', () => {
     expect(variants[1].optionValues).toEqual([{ optionName: 'Switch Type', name: 'Brown' }]);
   });
 
+  it('incorporates shipping_cost into total supplier cost before applying markup in productSet payload', () => {
+    const dataWithShipping: ImportRequestBody = {
+      ...sampleData,
+      shipping_cost: '5.00',
+    };
+
+    const payload = buildProductSetPayload(dataWithShipping);
+    const variants = payload.input.variants;
+
+    // Variant 1: Base 50.00 + Shipping 5.00 = 55.00 Total Supplier Cost
+    // 55.00 + 20% = 66.00
+    expect(variants[0].price).toBe('66.00');
+
+    // Variant 2: Base 55.00 + Shipping 5.00 = 60.00 Total Supplier Cost
+    // 60.00 + 20% = 72.00
+    expect(variants[1].price).toBe('72.00');
+  });
+
   it('maps images to files array with originalSource and contentType IMAGE', () => {
     const payload = buildProductSetPayload(sampleData);
     const files = payload.input.files;

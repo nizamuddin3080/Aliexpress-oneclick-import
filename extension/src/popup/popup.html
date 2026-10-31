@@ -81,6 +81,17 @@
               <span id="preview-source-price" class="value font-mono">-</span>
             </div>
             <div class="markup-row">
+              <label for="preview-shipping-input" class="label">Shipping Cost:</label>
+              <div class="markup-input-wrap">
+                <input type="number" id="preview-shipping-input" value="0.00" min="0" max="10000" step="0.01">
+                <span id="preview-shipping-currency" class="percent-suffix">USD</span>
+              </div>
+            </div>
+            <div class="price-row price-row--subtle" style="font-size: 12px; color: #6d7175;">
+              <span class="label">Total Supplier Cost:</span>
+              <span id="preview-total-cost" class="value font-mono font-bold">-</span>
+            </div>
+            <div class="markup-row">
               <label for="preview-markup-input" class="label">Price Markup:</label>
               <div class="markup-input-wrap">
                 <input type="number" id="preview-markup-input" value="30" min="0" max="1000" step="1">

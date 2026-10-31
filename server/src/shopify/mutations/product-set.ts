@@ -134,7 +134,7 @@ export function buildProductSetPayload(data: ImportRequestBody): ProductSetVaria
 
   // 2. Map variants with calculated selling price and option values
   const variants: ShopifyProductVariantInput[] = data.variants.map((v, idx) => {
-    const sellingPrice = calculateSellingPrice(v.price, data.markup_percentage);
+    const sellingPrice = calculateSellingPrice(v.price, data.markup_percentage, data.shipping_cost);
     const sku = v.sku || `${data.source_product_id}-${idx + 1}`;
 
     const optionValues: ShopifyVariantOptionValueInput[] = [];
